@@ -41,7 +41,6 @@ impl MemoryNetwork {
 
     pub async fn dispatch(&mut self) {
         while let Some(msg) = self.receiver.recv().await {
-            println!("Dispatching message: {:?}", msg);
             if msg.to.is_none() {
                 for sender in self.sender.values() {
                     let msg = msg.clone();
@@ -62,13 +61,6 @@ pub(crate) struct MemoryNetworkAdaptor {
     network_sender: Sender<NetworkPackage>,
 }
 
-// impl NetworkDriver<Receiver<NetworkPackage>, Sender<NetworkPackage>> for MemoryNetworkAdaptor {
-//     fn handlers(&mut self, _view: u32) -> (&mut Receiver<NetworkPackage>, &Sender<NetworkPackage>) {
-//         return (&mut self.receiver, &self.network_sender);
-//     }
-// }
-//
-
 impl MemoryNetworkAdaptor {
     pub(crate) fn take_receiver(&mut self) -> Receiver<NetworkPackage> {
         self.receiver.take().unwrap()
@@ -78,3 +70,5 @@ impl MemoryNetworkAdaptor {
         self.network_sender.clone()
     }
 }
+
+

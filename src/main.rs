@@ -3,16 +3,17 @@ use std::sync::Arc;
 use consensus::{Environment, Message, NetworkPackage, Voter, VoterSet};
 use data::Block;
 use network::{MemoryNetwork, MemoryNetworkAdaptor};
-use tokio::sync::Mutex;
+use parking_lot::Mutex;
 
 mod consensus;
 mod data;
+mod metrics;
 mod network;
 
 pub type Hash = u64;
 
 struct Node {
-    state: Arc<Mutex<Environment>>,
+    env: Arc<Mutex<Environment>>,
     id: u64,
     voter: Voter,
     // network: MemoryNetworkAdaptor,
@@ -27,7 +28,7 @@ impl Node {
         let voter = Voter::new(id, state.to_owned());
 
         Self {
-            state,
+            env: state,
             id,
             voter,
             // network,
@@ -37,6 +38,13 @@ impl Node {
     async fn run(&mut self) {
         println!("Voter is running: {}", self.id);
         self.voter.start().await;
+    }
+
+    async fn metrics(&self) -> metrics::Metrics {
+        let (tx, rx) = tokio::sync::mpsc::channel(100);
+        self.env.lock().register_finalized_block_tx(tx);
+        self.env.lock().block_tree.enable_metrics();
+        metrics::Metrics::new(rx)
     }
 }
 
@@ -64,6 +72,12 @@ async fn main() {
     // Boot up the network.
     let handle = tokio::spawn(async move {
         network.dispatch().await;
+    });
+
+    let mut metrics = nodes.get(1).unwrap().metrics().await;
+
+    tokio::spawn(async move {
+        metrics.dispatch().await;
     });
 
     // Run the nodes.
