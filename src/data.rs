@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
 use tokio::sync::mpsc::Sender;
 
 pub type Hash = u64;
@@ -45,7 +46,7 @@ pub struct CommandGenerator {
 }
 
 impl CommandGetter for CommandGenerator {
-    fn get_command(&mut self, batch_size: usize) -> Vec<[u8; COMMAND_SIZE]> {
+    fn get_command(&mut self, batch_size: usize) -> Vec<Transaction> {
         let mut commands = Vec::new();
         for _ in 0..batch_size {
             let command = Command {
@@ -53,7 +54,7 @@ impl CommandGetter for CommandGenerator {
                 created_time: 0,
                 command_type: CommandType::Set(0, 0),
             };
-            commands.push(command.serialize());
+            commands.push(command.serialize().into());
             self.index += 1;
         }
         commands
@@ -62,7 +63,7 @@ impl CommandGetter for CommandGenerator {
 
 trait CommandGetter: Send + Sync {
     /// Try best to get commands from the source.
-    fn get_command(&mut self, batch_size: usize) -> Vec<[u8; COMMAND_SIZE]>;
+    fn get_command(&mut self, batch_size: usize) -> Vec<Transaction>;
 }
 
 pub struct NodeConfig {
@@ -75,18 +76,37 @@ impl NodeConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QC {
     pub node: Hash,
     pub view: u64,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Transaction {
+    #[serde(with = "BigArray")]
+    pub payload: [u8; COMMAND_SIZE],
+}
+
+impl Into<[u8; COMMAND_SIZE]> for Transaction {
+    fn into(self) -> [u8; COMMAND_SIZE] {
+        self.payload
+    }
+}
+
+impl From<[u8; COMMAND_SIZE]> for Transaction {
+    fn from(payload: [u8; COMMAND_SIZE]) -> Self {
+        Self { payload }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Block {
     pub height: usize,
     pub prev_hash: Hash,
     pub justify: QC,
-    pub payloads: Vec<[u8; COMMAND_SIZE]>,
+    // #[serde(with = "BigArray")]
+    pub payloads: Vec<Transaction>,
     pub timestamp: u64,
 }
 
@@ -120,7 +140,7 @@ impl Block {
         prev_hash: Hash,
         prev_height: usize,
         justify: QC,
-        payloads: Vec<[u8; COMMAND_SIZE]>,
+        payloads: Vec<Transaction>,
     ) -> Self {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -128,7 +148,7 @@ impl Block {
             .as_millis() as u64;
         Self {
             height: prev_height + 1,
-            prev_hash: prev_hash,
+            prev_hash,
             justify,
             payloads,
             timestamp,

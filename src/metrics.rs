@@ -2,7 +2,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use tokio::sync::mpsc::Receiver;
 
-use crate::data::{Block, BlockType, BATCH_SIZE};
+use crate::{
+    data::{Block, BlockType, BATCH_SIZE},
+    DELAY_TEST,
+};
 
 pub(crate) struct Metrics {
     finalized_block_rx: Receiver<(Block, BlockType, u64)>,
@@ -45,13 +48,15 @@ impl Metrics {
                 self.type_counts[1] += 1;
             }
 
-            // println!(
-            //     "Finalized block {} with {} transactions in {} ms, start: {}",
-            //     block.height,
-            //     block.payloads.len(),
-            //     finalized_time - block.timestamp,
-            //     block.timestamp
-            // );
+            if DELAY_TEST {
+                println!(
+                    "Finalized block {} with {} transactions in {} ms, start: {}",
+                    block.height,
+                    block.payloads.len(),
+                    finalized_time - block.timestamp,
+                    block.timestamp
+                );
+            }
 
             if self.finalized_blocks % 500 == 0 {
                 println!(

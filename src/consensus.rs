@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 use crate::{
     data::{BlockType, QC},
-    Hash,
+    Hash, DELAY_TEST,
 };
 use std::{
     collections::HashMap,
@@ -26,6 +26,8 @@ use tokio::{
     task::spawn_local,
 };
 
+use serde::{Deserialize, Serialize};
+
 use parking_lot::Mutex;
 
 use crate::{
@@ -33,7 +35,9 @@ use crate::{
     network::MemoryNetworkAdaptor,
 };
 
-#[derive(Debug, Clone)]
+const HOTSTUFF: bool = true;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Message {
     Propose(Block),
     ProposeInBetween(Block),
@@ -110,7 +114,7 @@ impl VoterState {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct NetworkPackage {
     pub(crate) id: u64,
     /// None means the message is a broadcast message.
@@ -259,7 +263,7 @@ impl Voter {
             (rx, tx)
         };
         while let Some(pkg) = rx.recv().await {
-            // println!("{}: voter receive pkg: {:?}", id, pkg);
+            tracing::trace!("{}: voter receive pkg: {:?}", id, pkg);
             let from = pkg.id;
             let view = pkg.view.unwrap();
             let message = pkg.message;
@@ -349,14 +353,22 @@ impl Voter {
         collect_view: Arc<AtomicU64>,
     ) {
         let id = state.lock().id;
+
         // println!("{}: leader start", id);
 
         loop {
+            
             let tx = env.lock().network.get_sender();
             // println!("{}: leader: test", id);
             // TODO: no need to clone.
             let voters = env.lock().voter_set.clone();
             let view = state.lock().view;
+            
+            if DELAY_TEST {
+                if view > 4 {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(100000)).await;
+                }
+            }
             if Self::get_leader(view, &voters) == id {
                 // println!("{}: leader: I am the leader of view {}", id, view);
                 // qc for in-between blocks
@@ -369,22 +381,23 @@ impl Voter {
 
                 // TODO: loop until timeout or get enough votes
                 while collect_view.load(Ordering::SeqCst) + 1 < view {
-                    // println!(
-                    //     "{}: leader: best_view: {}, view: {}",
-                    //     id,
-                    //     collect_view.load(Ordering::Relaxed),
-                    //     view
-                    // );
-                    let pkg =
-                        Self::new_in_between_block(env.to_owned(), view, generic_qc.to_owned(), id)
-                            .await;
-                    tx.send(pkg).await.unwrap();
-                    // tokio::time::sleep(tokio::time::Duration::from_nanos(1)).await;
-                    // std::thread::sleep(std::time::Duration::from_micros(500));
+                    if !HOTSTUFF {
+                        let pkg = Self::new_in_between_block(
+                            env.to_owned(),
+                            view,
+                            generic_qc.to_owned(),
+                            id,
+                        )
+                        .await;
+                        tx.send(pkg).await.unwrap();
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_micros(10)).await;
                 }
 
                 let generic_qc = state.lock().generic_qc.clone();
                 let pkg = Self::new_key_block(env.to_owned(), view, generic_qc, id).await;
+                tracing::trace!("{}: leader: send propose", id);
+
                 tx.send(pkg).await.unwrap();
             }
 

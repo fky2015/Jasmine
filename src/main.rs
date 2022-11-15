@@ -1,9 +1,16 @@
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    net::{SocketAddr, SocketAddrV4},
+    path::PathBuf,
+    sync::Arc,
+};
 
+use clap::{Parser, Subcommand};
 use consensus::{Environment, Message, NetworkPackage, Voter, VoterSet};
 use data::Block;
-use network::{MemoryNetwork, MemoryNetworkAdaptor};
+use network::{MemoryNetwork, MemoryNetworkAdaptor, TcpNetwork};
 use parking_lot::Mutex;
+use tracing_subscriber::FmtSubscriber;
 
 mod consensus;
 mod data;
@@ -11,12 +18,12 @@ mod metrics;
 mod network;
 
 pub type Hash = u64;
+pub const DELAY_TEST: bool = true;
 
 struct Node {
     env: Arc<Mutex<Environment>>,
     id: u64,
     voter: Voter,
-    // network: MemoryNetworkAdaptor,
 }
 
 impl Node {
@@ -31,7 +38,6 @@ impl Node {
             env: state,
             id,
             voter,
-            // network,
         }
     }
 
@@ -48,44 +54,105 @@ impl Node {
     }
 }
 
+#[derive(Parser)]
+#[command(author, about, version)]
+struct Cli {
+    #[arg(short, long, value_name = "FILE")]
+    config: Option<PathBuf>,
+
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Parser)]
+enum Commands {
+    /// Run the node with memory network.
+    MemoryTest {
+        #[arg(short, long, default_value_t = 4)]
+        number: u64,
+    },
+}
+
+struct Config {}
+
 #[tokio::main]
 async fn main() {
-    let voter_set: Vec<_> = (0..4).collect();
-    let genesis = data::Block::genesis();
+    let cli = Cli::parse();
 
-    let mut network = MemoryNetwork::new();
+    match &cli.command {
+        Some(Commands::MemoryTest { number }) => {
+            let voter_set: Vec<_> = (0..*number).collect();
+            let genesis = data::Block::genesis();
 
-    // Prepare the environment.
-    let nodes: Vec<_> = voter_set
-        .iter()
-        .map(|id| {
-            let adaptor = network.register(*id);
-            Node::new(
-                *id,
-                adaptor,
-                genesis.to_owned(),
-                VoterSet::new(voter_set.clone()),
-            )
-        })
-        .collect();
+            let mut network = MemoryNetwork::new();
 
-    // Boot up the network.
-    let handle = tokio::spawn(async move {
-        network.dispatch().await;
-    });
+            // Prepare the environment.
+            let nodes: Vec<_> = voter_set
+                .iter()
+                .map(|id| {
+                    let adaptor = network.register(*id);
+                    Node::new(
+                        *id,
+                        adaptor,
+                        genesis.to_owned(),
+                        VoterSet::new(voter_set.clone()),
+                    )
+                })
+                .collect();
 
-    let mut metrics = nodes.get(1).unwrap().metrics().await;
+            // Boot up the network.
+            let handle = tokio::spawn(async move {
+                network.dispatch().await;
+            });
 
-    tokio::spawn(async move {
-        metrics.dispatch().await;
-    });
+            let mut metrics = nodes.get(1).unwrap().metrics().await;
 
-    // Run the nodes.
-    nodes.into_iter().for_each(|mut node| {
-        tokio::spawn(async move {
-            node.run().await;
-        });
-    });
+            tokio::spawn(async move {
+                metrics.dispatch().await;
+            });
 
-    let _ = tokio::join!(handle);
+            // Run the nodes.
+            nodes.into_iter().for_each(|mut node| {
+                tokio::spawn(async move {
+                    node.run().await;
+                });
+            });
+
+            let _ = tokio::join!(handle);
+        }
+        None => {
+            let _my_subscriber = FmtSubscriber::builder()
+                .with_max_level(tracing::Level::TRACE)
+                .init();
+
+            tracing::info!("Starting node");
+
+            // TODO: construct config objects
+            let addr: SocketAddr =
+                std::net::SocketAddr::V4(SocketAddrV4::new([127, 0, 0, 1].into(), 8080));
+            let mut addrs = HashMap::new();
+            addrs.insert(0, addr);
+
+            let adapter = TcpNetwork::spawn(addr, addrs);
+
+            let mut node = Node::new(0, adapter, data::Block::genesis(), VoterSet::new(vec![0]));
+
+            let mut metrics = node.metrics().await;
+
+            tokio::spawn(async move {
+                metrics.dispatch().await;
+            });
+
+            // Run the node
+            let handle = tokio::spawn(async move {
+                node.run().await;
+            });
+
+            let _ = tokio::join!(handle);
+        }
+    }
 }
+
+//test
+#[cfg(test)]
+mod test {}
