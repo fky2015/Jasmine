@@ -1,6 +1,6 @@
 use crate::{
     data::{BlockType, QC},
-    Config, Hash,
+    Hash, node_config::NodeConfig,
 };
 use std::{
     collections::HashMap,
@@ -142,7 +142,7 @@ impl Environment {
 
 pub(crate) struct Voter {
     id: u64,
-    config: Config,
+    config: NodeConfig,
     view: u64,
     env: Arc<Mutex<Environment>>,
 }
@@ -163,7 +163,7 @@ impl VoterSet {
 }
 
 impl Voter {
-    pub(crate) fn new(id: u64, config: Config, env: Arc<Mutex<Environment>>) -> Self {
+    pub(crate) fn new(id: u64, config: NodeConfig, env: Arc<Mutex<Environment>>) -> Self {
         let view = 1;
         Self {
             id,
@@ -250,7 +250,7 @@ impl Voter {
     }
 
     async fn voter(
-        config: Config,
+        config: NodeConfig,
         state: Arc<Mutex<VoterState>>,
         env: Arc<Mutex<Environment>>,
         collect_view: Arc<AtomicU64>,
@@ -359,7 +359,7 @@ impl Voter {
     }
 
     async fn leader(
-        config: Config,
+        config: NodeConfig,
         state: Arc<Mutex<VoterState>>,
         env: Arc<Mutex<Environment>>,
         collect_view: Arc<AtomicU64>,

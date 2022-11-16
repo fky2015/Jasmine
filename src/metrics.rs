@@ -2,7 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use tokio::sync::mpsc::Receiver;
 
-use crate::data::{Block, BlockType, BATCH_SIZE};
+use crate::data::{Block, BlockType};
 
 pub(crate) struct Metrics {
     finalized_block_rx: Receiver<(Block, BlockType, u64)>,

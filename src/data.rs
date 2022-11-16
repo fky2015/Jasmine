@@ -4,11 +4,9 @@ use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use tokio::sync::mpsc::Sender;
 
-pub type Hash = u64;
+use crate::node_config::NodeConfig;
 
-// in bytes
-const COMMAND_SIZE: usize = 256;
-pub const BATCH_SIZE: usize = 100;
+pub type Hash = u64;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CommandType {
@@ -25,14 +23,14 @@ pub struct Command {
 }
 
 impl Command {
-    fn serialize(&self) -> [u8; COMMAND_SIZE] {
+    fn serialize(&self, size: usize) -> Vec<u8> {
         let serialized = serde_json::to_string(self).unwrap();
-        let mut bytes = [0u8; COMMAND_SIZE];
-        bytes[..serialized.as_bytes().len()].copy_from_slice(serialized.as_bytes());
+        let mut bytes = Vec::with_capacity(size);
+        bytes.extend_from_slice(serialized.as_bytes());
         bytes
     }
 
-    fn deserialize(bytes: &[u8; COMMAND_SIZE]) -> Self {
+    fn deserialize(bytes: &Vec<u8>) -> Self {
         let serialized = String::from_utf8(bytes.to_vec())
             .unwrap()
             .trim_end_matches(char::from(0))
@@ -43,18 +41,20 @@ impl Command {
 
 pub struct CommandGenerator {
     index: usize,
+    command_size: usize,
+    batch_size: usize,
 }
 
 impl CommandGetter for CommandGenerator {
-    fn get_command(&mut self, batch_size: usize) -> Vec<Transaction> {
+    fn get_commands(&mut self) -> Vec<Transaction> {
         let mut commands = Vec::new();
-        for _ in 0..batch_size {
+        for _ in 0..self.batch_size {
             let command = Command {
                 id: self.index,
                 created_time: 0,
                 command_type: CommandType::Set(0, 0),
             };
-            commands.push(command.serialize().into());
+            commands.push(command.serialize(self.command_size).into());
             self.index += 1;
         }
         commands
@@ -63,17 +63,7 @@ impl CommandGetter for CommandGenerator {
 
 trait CommandGetter: Send + Sync {
     /// Try best to get commands from the source.
-    fn get_command(&mut self, batch_size: usize) -> Vec<Transaction>;
-}
-
-pub struct NodeConfig {
-    mempool_size: usize,
-}
-
-impl NodeConfig {
-    fn default() -> Self {
-        Self { mempool_size: 100 }
-    }
+    fn get_commands(&mut self) -> Vec<Transaction>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,18 +74,11 @@ pub struct QC {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
-    #[serde(with = "BigArray")]
-    pub payload: [u8; COMMAND_SIZE],
+    pub payload: Vec<u8>,
 }
 
-impl Into<[u8; COMMAND_SIZE]> for Transaction {
-    fn into(self) -> [u8; COMMAND_SIZE] {
-        self.payload
-    }
-}
-
-impl From<[u8; COMMAND_SIZE]> for Transaction {
-    fn from(payload: [u8; COMMAND_SIZE]) -> Self {
+impl From<Vec<u8>> for Transaction {
+    fn from(payload: Vec<u8>) -> Self {
         Self { payload }
     }
 }
@@ -175,7 +158,7 @@ pub(crate) struct BlockTree {
 }
 
 impl BlockTree {
-    pub(crate) fn new(genesis: Block) -> Self {
+    pub(crate) fn new(genesis: Block, config: &NodeConfig) -> Self {
         let mut blocks = HashMap::new();
         blocks.insert(genesis.hash(), (genesis.to_owned(), BlockType::Key));
 
@@ -190,7 +173,7 @@ impl BlockTree {
             latest: genesis.hash(),
             finalized: genesis.hash(),
             finalized_time,
-            block_generator: BlockGenerator::new(),
+            block_generator: BlockGenerator::new(config),
             parent_key_block,
             latest_key_block: genesis.hash(),
             enable_metrics: false,
@@ -333,15 +316,19 @@ pub(crate) struct BlockGenerator {
 }
 
 impl BlockGenerator {
-    fn new() -> Self {
+    fn new(config: &NodeConfig) -> Self {
         Self {
-            mempool: Box::new(CommandGenerator { index: 0 }),
+            mempool: Box::new(CommandGenerator {
+                index: 0,
+                command_size: config.get_node_settings().transaction_size,
+                batch_size: config.get_node_settings().batch_size,
+            }),
             genesis: Block::genesis(),
         }
     }
 
     fn new_block(&mut self, prev_hash: Hash, prev_height: usize, justify: QC) -> Block {
-        let payloads = self.mempool.get_command(BATCH_SIZE);
+        let payloads = self.mempool.get_commands();
         Block::new(prev_hash, prev_height, justify, payloads)
     }
 }
@@ -359,10 +346,12 @@ mod test {
                 created_time: 2,
                 command_type: CommandType::Set(1, 2),
             };
-            let serialized = command.serialize();
+
+            let serialized = command.serialize(256);
 
             let deserialized = Command::deserialize(&serialized);
             assert_eq!(command, deserialized);
+            assert_eq!(serialized.capacity(), 256)
         }
 
         {
@@ -372,10 +361,11 @@ mod test {
                 created_time: u64::MAX,
                 command_type: CommandType::Add(usize::MAX, i64::MAX),
             };
-            let serialized = command.serialize();
+            let serialized = command.serialize(256);
 
             let deserialized = Command::deserialize(&serialized);
             assert_eq!(command, deserialized);
+            assert_eq!(serialized.capacity(), 256);
         }
     }
 }

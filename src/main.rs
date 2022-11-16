@@ -6,8 +6,8 @@ use std::{
     sync::Arc,
 };
 
-use crate::config::Config;
-use clap::{Parser, Subcommand};
+use crate::node_config::{Cli, Commands, NodeConfig};
+use clap::Parser;
 use consensus::{Environment, Message, NetworkPackage, Voter, VoterSet};
 use data::Block;
 use network::{MemoryNetwork, MemoryNetworkAdaptor, TcpNetwork};
@@ -17,16 +17,16 @@ use tracing_subscriber::FmtSubscriber;
 
 use anyhow::Result;
 
-mod config;
 mod consensus;
 mod data;
 mod metrics;
 mod network;
+mod node_config;
 
 pub type Hash = u64;
 
 struct Node {
-    config: Config,
+    config: NodeConfig,
     env: Arc<Mutex<Environment>>,
     voter: Voter,
 }
@@ -34,12 +34,12 @@ struct Node {
 impl Node {
     // TODO: voter_set should read via config
     fn new(
-        config: Config,
+        config: NodeConfig,
         network: MemoryNetworkAdaptor,
         genesis: Block,
         voter_set: VoterSet,
     ) -> Self {
-        let block_tree = data::BlockTree::new(genesis);
+        let block_tree = data::BlockTree::new(genesis, &config);
 
         let state = Arc::new(Mutex::new(Environment::new(block_tree, voter_set, network)));
         let voter = Voter::new(config.get_id(), config.to_owned(), state.to_owned());
@@ -68,43 +68,6 @@ impl Node {
     }
 }
 
-#[derive(Parser)]
-#[command(author, about, version)]
-struct Cli {
-    #[arg(short, long, value_name = "FILE")]
-    config: Option<PathBuf>,
-
-    #[arg(short, long)]
-    id: Option<u64>,
-
-    #[arg(short, long)]
-    addr: Option<String>,
-
-    #[arg(short, long)]
-    disable_jasmine: bool,
-
-    #[arg(long)]
-    enable_delay_test: bool,
-
-    #[arg(long)]
-    disable_metrics: bool,
-
-    #[arg(short, long)]
-    sleep_until: Option<String>,
-
-    #[command(subcommand)]
-    command: Option<Commands>,
-}
-
-#[derive(Parser)]
-enum Commands {
-    /// Run the node with memory network.
-    MemoryTest {
-        #[arg(short, long, default_value_t = 4)]
-        number: u64,
-    },
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -113,11 +76,9 @@ async fn main() -> Result<()> {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-    tracing::info!("Starting node");
-
     match &cli.command {
         Some(Commands::MemoryTest { number }) => {
-            let config = crate::config::Config::from_cli(&cli)?;
+            let config = crate::node_config::NodeConfig::from_cli(&cli)?;
             let voter_set: Vec<_> = (0..*number).collect();
             let genesis = data::Block::genesis();
 
@@ -129,7 +90,7 @@ async fn main() -> Result<()> {
                 .map(|id| {
                     let adaptor = network.register(*id);
                     Node::new(
-                        config.to_owned(),
+                        config.clone_with_id(*id),
                         adaptor,
                         genesis.to_owned(),
                         VoterSet::new(voter_set.clone()),
@@ -152,7 +113,7 @@ async fn main() -> Result<()> {
             let _ = tokio::join!(handle);
         }
         None => {
-            let config = crate::config::Config::from_cli(&cli)?;
+            let config = crate::node_config::NodeConfig::from_cli(&cli)?;
 
             let adapter = TcpNetwork::spawn(
                 config.get_local_addr()?.to_owned(),
