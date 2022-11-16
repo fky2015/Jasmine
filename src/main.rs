@@ -1,14 +1,11 @@
 // TODO: metrics critical path to see what affects performance.
 use std::{
-    collections::HashMap,
-    net::{SocketAddr, SocketAddrV4, ToSocketAddrs},
-    path::PathBuf,
     sync::Arc,
 };
 
 use crate::node_config::{Cli, Commands, NodeConfig};
 use clap::Parser;
-use consensus::{Environment, Message, NetworkPackage, Voter, VoterSet};
+use consensus::{Environment, Voter, VoterSet};
 use data::Block;
 use network::{MemoryNetwork, MemoryNetworkAdaptor, TcpNetwork};
 use parking_lot::Mutex;

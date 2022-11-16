@@ -9,11 +9,10 @@ use std::{
         atomic::{AtomicU64, Ordering},
         Arc,
     },
-    task::Poll,
 };
 
 use tokio::sync::{
-    mpsc::{Receiver, Sender},
+    mpsc::{Sender},
     Notify,
 };
 
@@ -250,10 +249,10 @@ impl Voter {
     }
 
     async fn voter(
-        config: NodeConfig,
+        _config: NodeConfig,
         state: Arc<Mutex<VoterState>>,
         env: Arc<Mutex<Environment>>,
-        collect_view: Arc<AtomicU64>,
+        _collect_view: Arc<AtomicU64>,
     ) {
         let id = state.lock().id;
         let finalized_block_tx = env.lock().finalized_block_tx.to_owned();
@@ -345,7 +344,7 @@ impl Voter {
                 }
                 Message::ProposeInBetween(block) => {
                     // TODO: valid block
-                    let hash = block.hash();
+                    let _hash = block.hash();
 
                     // Add block to block tree
                     env.lock().block_tree.add_block(block, BlockType::InBetween);

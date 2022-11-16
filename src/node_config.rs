@@ -168,7 +168,7 @@ impl NodeConfig {
     }
 }
 
-use clap::{Parser, Subcommand};
+use clap::{Parser};
 
 #[derive(Parser)]
 #[command(author, about, version)]

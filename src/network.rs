@@ -1,16 +1,15 @@
 // TODO: use thiserror
 use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
-use std::{collections::HashMap, net::SocketAddr, process::exit, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
-use tracing::instrument;
+
 
 use crate::{
-    consensus::{Message, NetworkPackage},
-    Hash,
+    consensus::{NetworkPackage},
 };
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncReadExt},
     net::{TcpListener, TcpStream},
     sync::mpsc::{self, channel, Receiver, Sender},
 };
@@ -116,10 +115,8 @@ impl TcpNetwork {
                 for addr in self.addrs.values() {
                     self.sender.send(*addr, pkg.clone().into()).await;
                 }
-            } else {
-                if let Some(addr) = self.addrs.get(&to.unwrap()) {
-                    self.sender.send(*addr, pkg.into()).await;
-                }
+            } else if let Some(addr) = self.addrs.get(&to.unwrap()) {
+                self.sender.send(*addr, pkg.into()).await;
             }
         }
     }
@@ -253,7 +250,7 @@ impl SimpleReceiver {
         }
     }
 
-    async fn spawn_runner(mut socket: TcpStream, peer: SocketAddr, sender: Sender<NetworkPackage>) {
+    async fn spawn_runner(socket: TcpStream, peer: SocketAddr, sender: Sender<NetworkPackage>) {
         tokio::spawn(async move {
             let (mut _writer, mut reader) =
                 Framed::new(socket, LengthDelimitedCodec::new()).split();
