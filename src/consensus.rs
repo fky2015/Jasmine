@@ -375,7 +375,7 @@ impl Voter {
             let voters = env.lock().voter_set.clone();
             let view = state.lock().view;
 
-            if config.delay_test && view > 6 {
+            if config.get_test_mode().delay_test && view > 6 {
                 exit(0)
             }
 
@@ -387,11 +387,11 @@ impl Voter {
                 // let timeout = tokio::time::sleep(tokio::time::Duration::from_millis(1000));
                 // tokio::pin!(timeout);
 
-                let fu = futures::future::poll_fn(|cx| Poll::Ready(()));
+                // let fu = futures::future::poll_fn(|cx| Poll::Ready(()));
 
                 // TODO: loop until timeout or get enough votes
                 while collect_view.load(Ordering::SeqCst) + 1 < view {
-                    if !config.hotstuff {
+                    if config.get_consensus_type().is_jasmine() {
                         let pkg = Self::new_in_between_block(
                             env.to_owned(),
                             view,

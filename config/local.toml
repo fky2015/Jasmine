@@ -1,0 +1,24 @@
+id = 0
+
+# Jasmine or HotStuff
+consensus = "Jasmine"
+
+[peer_addrs]
+
+0 = "127.0.0.1:8123"
+# 1 = "127.0.0.1:8126"
+# 2 = "127.0.0.1:8129"
+# 3 = "127.0.0.1:8120"
+
+[test_mode]
+
+# default is false
+delay_test = false
+
+[logs]
+
+level = "info"
+
+[metrics]
+
+enabled = true

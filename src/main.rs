@@ -1,3 +1,4 @@
+// TODO: metrics critical path to see what affects performance.
 use std::{
     collections::HashMap,
     net::{SocketAddr, SocketAddrV4, ToSocketAddrs},
@@ -5,6 +6,7 @@ use std::{
     sync::Arc,
 };
 
+use crate::config::Config;
 use clap::{Parser, Subcommand};
 use consensus::{Environment, Message, NetworkPackage, Voter, VoterSet};
 use data::Block;
@@ -13,6 +15,9 @@ use parking_lot::Mutex;
 use tokio::task::JoinHandle;
 use tracing_subscriber::FmtSubscriber;
 
+use anyhow::Result;
+
+mod config;
 mod consensus;
 mod data;
 mod metrics;
@@ -37,7 +42,7 @@ impl Node {
         let block_tree = data::BlockTree::new(genesis);
 
         let state = Arc::new(Mutex::new(Environment::new(block_tree, voter_set, network)));
-        let voter = Voter::new(config.id, config.to_owned(), state.to_owned());
+        let voter = Voter::new(config.get_id(), config.to_owned(), state.to_owned());
 
         Self {
             env: state,
@@ -47,7 +52,7 @@ impl Node {
     }
 
     fn spawn_run(mut self) -> JoinHandle<()> {
-        println!("Voter is running: {}", self.config.id);
+        println!("Voter is running: {}", self.config.get_id());
         tokio::spawn(async move {
             self.voter.start().await;
         })
@@ -84,6 +89,9 @@ struct Cli {
     #[arg(long)]
     disable_metrics: bool,
 
+    #[arg(short, long)]
+    sleep_until: Option<String>,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -97,69 +105,8 @@ enum Commands {
     },
 }
 
-#[derive(Clone, Debug)]
-struct Config {
-    log_level: tracing::Level,
-
-    hotstuff: bool,
-    delay_test: bool,
-
-    id: u64,
-
-    local_addr: SocketAddr,
-
-    // id, addr
-    peer_addrs: HashMap<u64, SocketAddr>,
-}
-
-impl Config {
-    fn new(cli: &Cli) -> Self {
-        let config = match &cli.config {
-            Some(path) => {
-                // todo
-                // let content = std::fs::read_to_string(path).unwrap();
-                // toml::from_str(&content).unwrap()
-            }
-            None => Default::default(),
-        };
-
-        // let log_level = match cli.log_level.as_str() {
-        //     "trace" => tracing::Level::TRACE,
-        //     "debug" => tracing::Level::DEBUG,
-        //     "info" => tracing::Level::INFO,
-        //     "warn" => tracing::Level::WARN,
-        //     "error" => tracing::Level::ERROR,
-        //     _ => tracing::Level::INFO,
-        // };
-
-        // let hotstuff = config.hotstuff;
-        //
-        // let id = config.id;
-        //
-        // let local_addr = config.local_addr;
-        //
-        // let peers = config.peers;
-        let id = cli.id.unwrap_or(0);
-        let local_addr = "localhost:8123".to_string();
-        let local_addr = cli.addr.as_ref().unwrap_or(&local_addr);
-        let local_addr = local_addr.to_socket_addrs().unwrap().next().unwrap();
-
-        let mut peers = HashMap::new();
-        peers.insert(id, local_addr);
-
-        Self {
-            log_level: tracing::Level::INFO,
-            hotstuff: cli.disable_jasmine,
-            delay_test: cli.disable_metrics,
-            id,
-            local_addr,
-            peer_addrs: peers,
-        }
-    }
-}
-
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     FmtSubscriber::builder()
@@ -170,7 +117,7 @@ async fn main() {
 
     match &cli.command {
         Some(Commands::MemoryTest { number }) => {
-            let config = Config::new(&cli);
+            let config = crate::config::Config::from_cli(&cli)?;
             let voter_set: Vec<_> = (0..*number).collect();
             let genesis = data::Block::genesis();
 
@@ -205,10 +152,12 @@ async fn main() {
             let _ = tokio::join!(handle);
         }
         None => {
-            let config = Config::new(&cli);
+            let config = crate::config::Config::from_cli(&cli)?;
 
-            let adapter =
-                TcpNetwork::spawn(config.local_addr.to_owned(), config.peer_addrs.to_owned());
+            let adapter = TcpNetwork::spawn(
+                config.get_local_addr()?.to_owned(),
+                config.get_peer_addrs().to_owned(),
+            );
 
             let node = Node::new(
                 config,
@@ -227,6 +176,7 @@ async fn main() {
             let _ = handle.await;
         }
     }
+    Ok(())
 }
 
 //test
