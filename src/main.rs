@@ -217,7 +217,7 @@ async fn main() {
                 VoterSet::new(vec![0]),
             );
 
-            if cli.disable_metrics {
+            if !cli.disable_metrics {
                 node.metrics();
             }
 
