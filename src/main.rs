@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    net::{SocketAddr, SocketAddrV4},
+    net::{SocketAddr, SocketAddrV4, ToSocketAddrs},
     path::PathBuf,
     sync::Arc,
 };
@@ -10,6 +10,7 @@ use consensus::{Environment, Message, NetworkPackage, Voter, VoterSet};
 use data::Block;
 use network::{MemoryNetwork, MemoryNetworkAdaptor, TcpNetwork};
 use parking_lot::Mutex;
+use tokio::task::JoinHandle;
 use tracing_subscriber::FmtSubscriber;
 
 mod consensus;
@@ -18,39 +19,47 @@ mod metrics;
 mod network;
 
 pub type Hash = u64;
-pub const DELAY_TEST: bool = true;
 
 struct Node {
+    config: Config,
     env: Arc<Mutex<Environment>>,
-    id: u64,
     voter: Voter,
 }
 
 impl Node {
     // TODO: voter_set should read via config
-    fn new(id: u64, network: MemoryNetworkAdaptor, genesis: Block, voter_set: VoterSet) -> Self {
+    fn new(
+        config: Config,
+        network: MemoryNetworkAdaptor,
+        genesis: Block,
+        voter_set: VoterSet,
+    ) -> Self {
         let block_tree = data::BlockTree::new(genesis);
 
         let state = Arc::new(Mutex::new(Environment::new(block_tree, voter_set, network)));
-        let voter = Voter::new(id, state.to_owned());
+        let voter = Voter::new(config.id, config.to_owned(), state.to_owned());
 
         Self {
             env: state,
-            id,
             voter,
+            config,
         }
     }
 
-    async fn run(&mut self) {
-        println!("Voter is running: {}", self.id);
-        self.voter.start().await;
+    fn spawn_run(mut self) -> JoinHandle<()> {
+        println!("Voter is running: {}", self.config.id);
+        tokio::spawn(async move {
+            self.voter.start().await;
+        })
     }
 
-    async fn metrics(&self) -> metrics::Metrics {
+    /// Enable and spawn a metrics.
+    fn metrics(&self) {
         let (tx, rx) = tokio::sync::mpsc::channel(100);
         self.env.lock().register_finalized_block_tx(tx);
         self.env.lock().block_tree.enable_metrics();
-        metrics::Metrics::new(rx)
+        let mut metrics = metrics::Metrics::new(rx);
+        tokio::spawn(async move { metrics.dispatch().await });
     }
 }
 
@@ -59,6 +68,21 @@ impl Node {
 struct Cli {
     #[arg(short, long, value_name = "FILE")]
     config: Option<PathBuf>,
+
+    #[arg(short, long)]
+    id: Option<u64>,
+
+    #[arg(short, long)]
+    addr: Option<String>,
+
+    #[arg(short, long)]
+    disable_jasmine: bool,
+
+    #[arg(long)]
+    enable_delay_test: bool,
+
+    #[arg(long)]
+    disable_metrics: bool,
 
     #[command(subcommand)]
     command: Option<Commands>,
@@ -73,14 +97,80 @@ enum Commands {
     },
 }
 
-struct Config {}
+#[derive(Clone, Debug)]
+struct Config {
+    log_level: tracing::Level,
+
+    hotstuff: bool,
+    delay_test: bool,
+
+    id: u64,
+
+    local_addr: SocketAddr,
+
+    // id, addr
+    peer_addrs: HashMap<u64, SocketAddr>,
+}
+
+impl Config {
+    fn new(cli: &Cli) -> Self {
+        let config = match &cli.config {
+            Some(path) => {
+                // todo
+                // let content = std::fs::read_to_string(path).unwrap();
+                // toml::from_str(&content).unwrap()
+            }
+            None => Default::default(),
+        };
+
+        // let log_level = match cli.log_level.as_str() {
+        //     "trace" => tracing::Level::TRACE,
+        //     "debug" => tracing::Level::DEBUG,
+        //     "info" => tracing::Level::INFO,
+        //     "warn" => tracing::Level::WARN,
+        //     "error" => tracing::Level::ERROR,
+        //     _ => tracing::Level::INFO,
+        // };
+
+        // let hotstuff = config.hotstuff;
+        //
+        // let id = config.id;
+        //
+        // let local_addr = config.local_addr;
+        //
+        // let peers = config.peers;
+        let id = cli.id.unwrap_or(0);
+        let local_addr = "localhost:8123".to_string();
+        let local_addr = cli.addr.as_ref().unwrap_or(&local_addr);
+        let local_addr = local_addr.to_socket_addrs().unwrap().next().unwrap();
+
+        let mut peers = HashMap::new();
+        peers.insert(id, local_addr);
+
+        Self {
+            log_level: tracing::Level::INFO,
+            hotstuff: cli.disable_jasmine,
+            delay_test: cli.disable_metrics,
+            id,
+            local_addr,
+            peer_addrs: peers,
+        }
+    }
+}
 
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
 
+    FmtSubscriber::builder()
+        .with_max_level(tracing::Level::INFO)
+        .init();
+
+    tracing::info!("Starting node");
+
     match &cli.command {
         Some(Commands::MemoryTest { number }) => {
+            let config = Config::new(&cli);
             let voter_set: Vec<_> = (0..*number).collect();
             let genesis = data::Block::genesis();
 
@@ -92,7 +182,7 @@ async fn main() {
                 .map(|id| {
                     let adaptor = network.register(*id);
                     Node::new(
-                        *id,
+                        config.to_owned(),
                         adaptor,
                         genesis.to_owned(),
                         VoterSet::new(voter_set.clone()),
@@ -105,50 +195,36 @@ async fn main() {
                 network.dispatch().await;
             });
 
-            let mut metrics = nodes.get(1).unwrap().metrics().await;
-
-            tokio::spawn(async move {
-                metrics.dispatch().await;
-            });
+            nodes.get(0).unwrap().metrics();
 
             // Run the nodes.
-            nodes.into_iter().for_each(|mut node| {
-                tokio::spawn(async move {
-                    node.run().await;
-                });
+            nodes.into_iter().for_each(|node| {
+                node.spawn_run();
             });
 
             let _ = tokio::join!(handle);
         }
         None => {
-            let _my_subscriber = FmtSubscriber::builder()
-                .with_max_level(tracing::Level::TRACE)
-                .init();
+            let config = Config::new(&cli);
 
-            tracing::info!("Starting node");
+            let adapter =
+                TcpNetwork::spawn(config.local_addr.to_owned(), config.peer_addrs.to_owned());
 
-            // TODO: construct config objects
-            let addr: SocketAddr =
-                std::net::SocketAddr::V4(SocketAddrV4::new([127, 0, 0, 1].into(), 8080));
-            let mut addrs = HashMap::new();
-            addrs.insert(0, addr);
+            let node = Node::new(
+                config,
+                adapter,
+                data::Block::genesis(),
+                VoterSet::new(vec![0]),
+            );
 
-            let adapter = TcpNetwork::spawn(addr, addrs);
-
-            let mut node = Node::new(0, adapter, data::Block::genesis(), VoterSet::new(vec![0]));
-
-            let mut metrics = node.metrics().await;
-
-            tokio::spawn(async move {
-                metrics.dispatch().await;
-            });
+            if cli.disable_metrics {
+                node.metrics();
+            }
 
             // Run the node
-            let handle = tokio::spawn(async move {
-                node.run().await;
-            });
+            let handle = node.spawn_run();
 
-            let _ = tokio::join!(handle);
+            let _ = handle.await;
         }
     }
 }

@@ -1,7 +1,7 @@
 // TODO: use thiserror
 use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, process::exit, sync::Arc};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 use tracing::instrument;
 
@@ -10,6 +10,7 @@ use crate::{
     Hash,
 };
 use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
     sync::mpsc::{self, channel, Receiver, Sender},
 };
@@ -86,8 +87,8 @@ pub struct TcpNetwork {
 
 impl TcpNetwork {
     pub fn spawn(addr: SocketAddr, config: HashMap<u64, SocketAddr>) -> NetworkAdaptor {
-        let (tx, rx) = mpsc::channel(100);
-        let (sender_tx, sender_rx) = mpsc::channel(100);
+        let (tx, rx) = mpsc::channel(1);
+        let (sender_tx, sender_rx) = mpsc::channel(1);
         tokio::spawn(async move {
             Self {
                 addrs: config.clone(),
@@ -143,7 +144,7 @@ impl SimpleSender {
     }
 
     fn spawn_connection(address: SocketAddr) -> Sender<Bytes> {
-        let (tx, rx) = channel(1_000_000);
+        let (tx, rx) = channel(1);
         Connection::spawn(address, rx);
         tx
     }
@@ -178,9 +179,13 @@ impl Connection {
     }
 
     async fn run(&mut self) {
-        // Try to connect to the peer
+        // // Try to connect to the peer
         let (mut writer, mut reader) = match TcpStream::connect(self.address).await {
-            Ok(stream) => Framed::new(stream, LengthDelimitedCodec::new()).split(),
+            Ok(stream) => {
+                // Turn on TCP_NODELAY to eliminate latency.
+                stream.set_nodelay(true).unwrap();
+                Framed::new(stream, LengthDelimitedCodec::new()).split()
+            }
             Err(e) => {
                 eprintln!("failed to connect to {}: {}", self.address, e);
                 return;
@@ -190,13 +195,15 @@ impl Connection {
         loop {
             tokio::select! {
                 Some(bytes) = self.receiver.recv() => {
-                    tracing::trace!("sending to {}", self.address);
                     if let Err(e) = writer.send(bytes).await {
                         eprintln!("failed to send message to {}: {}", self.address, e);
                         return;
                     }
+
                     tracing::trace!("sent to {}", self.address);
                 }
+
+
                 Some(result) = reader.next() => {
                     match result {
                         Ok(_bytes) => {
@@ -246,10 +253,8 @@ impl SimpleReceiver {
         }
     }
 
-    async fn spawn_runner(socket: TcpStream, peer: SocketAddr, sender: Sender<NetworkPackage>) {
+    async fn spawn_runner(mut socket: TcpStream, peer: SocketAddr, sender: Sender<NetworkPackage>) {
         tokio::spawn(async move {
-            socket.readable().await.unwrap();
-            tracing::trace!("runner spawn, new connection from {}", peer);
             let (mut _writer, mut reader) =
                 Framed::new(socket, LengthDelimitedCodec::new()).split();
             while let Some(result) = reader.next().await {
