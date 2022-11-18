@@ -1,8 +1,9 @@
 use anyhow::Result;
+use clap::Parser;
 use std::{
     collections::HashMap,
     net::{SocketAddr, ToSocketAddrs},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use serde::{Deserialize, Serialize};
@@ -63,12 +64,29 @@ pub(crate) struct Logs {}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub(crate) struct Metrics {
+    /// Enable metrics module.
     enabled: bool,
+    /// Stop the node if finalized block is higher than this value.
+    /// If not set, the node will run forever.
+    pub(crate) stop_after: Option<u64>,
+    /// Print every finalization logs.
+    pub(crate) trace_finalization: bool,
+    /// Report metrics every `period`.
+    /// If not provided, never report.
+    pub(crate) period: Option<u64>,
+    /// Export the metrics data to the `export_path` before the node exits.
+    pub(crate) export_path: Option<PathBuf>,
 }
 
 impl Default for Metrics {
     fn default() -> Self {
-        Self { enabled: true }
+        Self {
+            enabled: true,
+            stop_after: Some(1000000),
+            trace_finalization: false,
+            period: Some(200),
+            export_path: None,
+        }
     }
 }
 
@@ -166,9 +184,11 @@ impl NodeConfig {
     pub fn get_node_settings(&self) -> &NodeSettings {
         &self.node_settings
     }
-}
 
-use clap::{Parser};
+    pub fn get_metrics(&self) -> &Metrics {
+        &self.metrics
+    }
+}
 
 #[derive(Parser)]
 #[command(author, about, version)]

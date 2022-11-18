@@ -1,7 +1,5 @@
 // TODO: metrics critical path to see what affects performance.
-use std::{
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use crate::node_config::{Cli, Commands, NodeConfig};
 use clap::Parser;
@@ -10,6 +8,7 @@ use data::Block;
 use network::{MemoryNetwork, MemoryNetworkAdaptor, TcpNetwork};
 use parking_lot::Mutex;
 use tokio::task::JoinHandle;
+use tracing::info;
 use tracing_subscriber::FmtSubscriber;
 
 use anyhow::Result;
@@ -49,6 +48,7 @@ impl Node {
     }
 
     fn spawn_run(mut self) -> JoinHandle<()> {
+        info!("Node config: {:#?}", self.config);
         println!("Voter is running: {}", self.config.get_id());
         tokio::spawn(async move {
             self.voter.start().await;
@@ -60,7 +60,7 @@ impl Node {
         let (tx, rx) = tokio::sync::mpsc::channel(100);
         self.env.lock().register_finalized_block_tx(tx);
         self.env.lock().block_tree.enable_metrics();
-        let mut metrics = metrics::Metrics::new(rx);
+        let mut metrics = metrics::Metrics::new(self.config.to_owned(), rx);
         tokio::spawn(async move { metrics.dispatch().await });
     }
 }
