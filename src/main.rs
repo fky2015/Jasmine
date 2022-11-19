@@ -18,6 +18,8 @@ mod data;
 mod metrics;
 mod network;
 mod node_config;
+mod mempool;
+mod client;
 
 pub type Hash = u64;
 
@@ -117,12 +119,9 @@ async fn main() -> Result<()> {
                 config.get_peer_addrs().to_owned(),
             );
 
-            let node = Node::new(
-                config,
-                adapter,
-                data::Block::genesis(),
-                VoterSet::new(vec![0]),
-            );
+            let voter_set = config.get_voter_set();
+
+            let node = Node::new(config, adapter, data::Block::genesis(), voter_set);
 
             if !cli.disable_metrics {
                 node.metrics();

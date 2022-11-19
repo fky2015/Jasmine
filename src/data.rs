@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 
-
-use crate::node_config::NodeConfig;
+use crate::{client::FakeClient, mempool::Mempool, node_config::NodeConfig};
 
 pub type Hash = u64;
 
@@ -17,13 +16,13 @@ pub enum CommandType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Command {
-    id: usize,
-    created_time: u64,
-    command_type: CommandType,
+    pub(crate) id: usize,
+    pub(crate) created_time: u64,
+    pub(crate) command_type: CommandType,
 }
 
 impl Command {
-    fn serialize(&self, size: usize) -> Vec<u8> {
+    pub(crate) fn serialize(&self, size: usize) -> Vec<u8> {
         let serialized = serde_json::to_string(self).unwrap();
         let mut bytes = Vec::with_capacity(size);
         bytes.extend_from_slice(serialized.as_bytes());
@@ -61,7 +60,7 @@ impl CommandGetter for CommandGenerator {
     }
 }
 
-trait CommandGetter: Send + Sync {
+pub(crate) trait CommandGetter: Send + Sync {
     /// Try best to get commands from the source.
     fn get_commands(&mut self) -> Vec<Transaction>;
 }
@@ -149,6 +148,7 @@ pub(crate) struct BlockTree {
     pub(crate) blocks: HashMap<Hash, (Block, BlockType)>,
     pub(crate) finalized_time: HashMap<Hash, u64>,
     pub(crate) latest: Hash,
+    /// latest finalized block (always key block)
     pub(crate) finalized: Hash,
     pub(crate) block_generator: BlockGenerator,
     // pub(crate) finalized_block_tx: Option<Sender<(Block, BlockType, u64)>>,
@@ -234,6 +234,15 @@ impl BlockTree {
             .unwrap()
             .as_millis() as u64;
 
+        // TODO: validate
+        if self.blocks.get(&block).unwrap().0.height
+            > self.blocks.get(&self.finalized).unwrap().0.height
+        {
+            self.finalized = block;
+        } else {
+            return finalized_blocks;
+        }
+
         let mut current = block;
         while !self.finalized(current) {
             self.finalized_time.insert(current, finalized_time);
@@ -251,7 +260,13 @@ impl BlockTree {
             let mut current = self.finalized;
             for _ in 0..3 {
                 current = match self.parent_key_block.get(&current) {
-                    Some(parent) => *parent,
+                    Some(parent) => {
+                        // if current == *parent {
+                        //     return finalized_blocks;
+                        // }
+
+                        *parent
+                    }
                     // Should not prune if there is no parent key block.
                     None => return finalized_blocks,
                 };
@@ -317,13 +332,23 @@ pub(crate) struct BlockGenerator {
 
 impl BlockGenerator {
     fn new(config: &NodeConfig) -> Self {
-        Self {
-            mempool: Box::new(CommandGenerator {
-                index: 0,
-                command_size: config.get_node_settings().transaction_size,
-                batch_size: config.get_node_settings().batch_size,
-            }),
-            genesis: Block::genesis(),
+        if config.get_client_config().use_instant_generator {
+            Self {
+                mempool: Box::new(CommandGenerator {
+                    index: 0,
+                    command_size: config.get_node_settings().transaction_size,
+                    batch_size: config.get_node_settings().batch_size,
+                }),
+                genesis: Block::genesis(),
+            }
+        } else {
+            let (mempool, tx) = Mempool::spawn_receiver(config.to_owned());
+            FakeClient::spawn(config.to_owned(), tx);
+
+            Self {
+                mempool: Box::new(mempool),
+                genesis: Block::genesis(),
+            }
         }
     }
 

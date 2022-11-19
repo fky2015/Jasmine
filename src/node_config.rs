@@ -9,6 +9,8 @@ use std::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::consensus::VoterSet;
+
 #[derive(Debug, Error)]
 pub enum ConfigError {
     #[error("Failed to parse config file: {0}")]
@@ -22,6 +24,10 @@ pub enum ConfigError {
 pub(crate) struct NodeSettings {
     pub(crate) transaction_size: usize,
     pub(crate) batch_size: usize,
+    /// The maximum number of transactions in the mempool.
+    ///
+    /// For best performance, this should be a multiple of batch_size.
+    pub(crate) mempool_size: usize,
 }
 
 impl Default for NodeSettings {
@@ -29,6 +35,26 @@ impl Default for NodeSettings {
         Self {
             transaction_size: 256,
             batch_size: 100,
+            mempool_size: 1000,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub(crate) struct ClientConfig {
+    /// Use a instant command generator instead of clients and mempools.
+    ///
+    /// In this way, end-to-end latency **cannot** be measured.
+    pub(crate) use_instant_generator: bool,
+    /// Transaction per second.
+    pub(crate) injection_rate: u64,
+}
+
+impl Default for ClientConfig {
+    fn default() -> Self {
+        Self {
+            use_instant_generator: false,
+            injection_rate: 1_000_000,
         }
     }
 }
@@ -71,21 +97,33 @@ pub(crate) struct Metrics {
     pub(crate) stop_after: Option<u64>,
     /// Print every finalization logs.
     pub(crate) trace_finalization: bool,
-    /// Report metrics every `period`.
-    /// If not provided, never report.
-    pub(crate) period: Option<u64>,
+    /// Report metrics every `sampling_interval` ms.
+    pub(crate) sampling_interval: u64,
     /// Export the metrics data to the `export_path` before the node exits.
     pub(crate) export_path: Option<PathBuf>,
+    /// Track last `n` sampling data.
+    pub(crate) sampling_window: usize,
+    /// Stop the node after mean latency and throughput are stable.
+    pub(crate) stop_after_stable: bool,
+    /// Stable threshold for mean latency and throughput.
+    pub(crate) stable_threshold: f64,
+    /// Print the metrics data to stdout every n samples.
+    /// If not provided, never report.
+    pub(crate) report_every_n_samples: Option<usize>,
 }
 
 impl Default for Metrics {
     fn default() -> Self {
         Self {
             enabled: true,
-            stop_after: Some(1000000),
+            stop_after: None,
             trace_finalization: false,
-            period: Some(200),
+            sampling_interval: 2000,
             export_path: None,
+            stop_after_stable: true,
+            stable_threshold: 0.1,
+            sampling_window: 20,
+            report_every_n_samples: Some(1),
         }
     }
 }
@@ -106,6 +144,8 @@ pub(crate) struct NodeConfig {
     logs: Logs,
     #[serde(default)]
     metrics: Metrics,
+    #[serde(default)]
+    client: ClientConfig,
 }
 
 impl Default for NodeConfig {
@@ -124,6 +164,7 @@ impl Default for NodeConfig {
             test_mode: TestMode::default(),
             logs: Logs::default(),
             metrics: Metrics::default(),
+            client: ClientConfig::default(),
         }
     }
 }
@@ -188,31 +229,44 @@ impl NodeConfig {
     pub fn get_metrics(&self) -> &Metrics {
         &self.metrics
     }
+
+    pub fn get_voter_set(&self) -> VoterSet {
+        VoterSet::new(self.peer_addrs.keys().cloned().collect())
+    }
+
+    pub fn get_client_config(&self) -> &ClientConfig {
+        &self.client
+    }
 }
 
 #[derive(Parser)]
-#[command(author, about, version)]
+#[command(name = "Jasmine")]
+#[command(author = "Feng Kaiyu <loveress01@outlook.com>")]
+#[command(about = "POC Jasmine", version)]
 pub(crate) struct Cli {
+    /// Path to the config file
     #[arg(short, long, value_name = "FILE")]
     config: Option<PathBuf>,
 
-    #[arg(short, long)]
-    id: Option<u64>,
+    /// Set ID of current node.
+    #[arg(short, long, default_value_t = 0)]
+    id: u64,
 
-    #[arg(short, long)]
-    addr: Option<String>,
+    /// Addresses of known nodes.
+    #[arg(short, long, default_value_t = String::from("localhost:8123"))]
+    addr: String,
 
+    /// Use HotStuff consensus.
     #[arg(short, long)]
     pub(crate) disable_jasmine: bool,
 
+    /// Enable delay_test.
     #[arg(long)]
     enable_delay_test: bool,
 
+    /// Disable metrics
     #[arg(long)]
     pub(crate) disable_metrics: bool,
-
-    #[arg(short, long)]
-    sleep_until: Option<String>,
 
     #[command(subcommand)]
     pub(crate) command: Option<Commands>,
@@ -220,8 +274,9 @@ pub(crate) struct Cli {
 
 #[derive(Parser)]
 pub(crate) enum Commands {
-    /// Run the node with memory network.
+    /// Run the node within memory network.
     MemoryTest {
+        /// Number of nodes.
         #[arg(short, long, default_value_t = 4)]
         number: u64,
     },

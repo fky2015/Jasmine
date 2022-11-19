@@ -1,6 +1,7 @@
 use crate::{
     data::{BlockType, QC},
-    Hash, node_config::NodeConfig,
+    node_config::NodeConfig,
+    Hash,
 };
 use std::{
     collections::HashMap,
@@ -11,10 +12,7 @@ use std::{
     },
 };
 
-use tokio::sync::{
-    mpsc::{Sender},
-    Notify,
-};
+use tokio::sync::{mpsc::Sender, Notify};
 
 use serde::{Deserialize, Serialize};
 
@@ -65,6 +63,7 @@ impl VoterState {
 
     pub(crate) fn view_add_one(&mut self) {
         // println!("{}: view add to {}", self.id, self.view + 1);
+        self.votes.retain(|v, _| v >= &self.view);
         self.view += 1;
         self.notify.notify_waiters();
     }
@@ -271,6 +270,9 @@ impl Voter {
             tracing::trace!("{}: voter receive pkg: {:?}", id, pkg);
             let from = pkg.id;
             let view = pkg.view.unwrap();
+            if view < state.lock().view - 1 {
+                continue;
+            }
             let message = pkg.message;
             match message {
                 Message::Propose(block) => {
@@ -399,8 +401,8 @@ impl Voter {
                         )
                         .await;
                         tx.send(pkg).await.unwrap();
-                        // tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
                     }
+                    // tokio::time::sleep(tokio::time::Duration::from_micros(10)).await;
                 }
 
                 let generic_qc = state.lock().generic_qc.clone();
