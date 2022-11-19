@@ -181,20 +181,20 @@ impl Voter {
         }
     }
 
-    async fn new_in_between_block(
+    fn new_in_between_block(
         env: Arc<Mutex<Environment>>,
         view: u64,
         generic_qc: QC,
         id: u64,
-    ) -> NetworkPackage {
-        let block = env
-            .lock()
+        lower_bound: usize,
+    ) -> Option<NetworkPackage> {
+        env.lock()
             .block_tree
-            .new_block(generic_qc, BlockType::InBetween);
-        Self::package_message(id, Message::ProposeInBetween(block), view, None)
+            .new_block_with_lowerbound(generic_qc, BlockType::InBetween, lower_bound)
+            .map(|blk| Self::package_message(id, Message::ProposeInBetween(blk), view, None))
     }
 
-    async fn new_key_block(
+    fn new_key_block(
         env: Arc<Mutex<Environment>>,
         view: u64,
         generic_qc: QC,
@@ -392,21 +392,27 @@ impl Voter {
 
                 // TODO: loop until timeout or get enough votes
                 while collect_view.load(Ordering::SeqCst) + 1 < view {
-                    if config.get_consensus_type().is_jasmine() {
+                    if let crate::node_config::ConsensusType::Jasmine { minimal_batch_size } =
+                        config.get_consensus_type()
+                    {
                         let pkg = Self::new_in_between_block(
                             env.to_owned(),
                             view,
                             generic_qc.to_owned(),
                             id,
-                        )
-                        .await;
-                        tx.send(pkg).await.unwrap();
+                            *minimal_batch_size,
+                        );
+
+                        if let Some(pkg) = pkg {
+                            tx.send(pkg).await.unwrap();
+                        } else {
+                            tokio::task::yield_now().await;
+                        }
                     }
-                    // tokio::time::sleep(tokio::time::Duration::from_micros(10)).await;
                 }
 
                 let generic_qc = state.lock().generic_qc.clone();
-                let pkg = Self::new_key_block(env.to_owned(), view, generic_qc, id).await;
+                let pkg = Self::new_key_block(env.to_owned(), view, generic_qc, id);
                 tracing::trace!("{}: leader: send propose", id);
 
                 tx.send(pkg).await.unwrap();

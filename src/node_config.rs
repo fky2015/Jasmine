@@ -54,26 +54,34 @@ impl Default for ClientConfig {
     fn default() -> Self {
         Self {
             use_instant_generator: false,
-            injection_rate: 1_000_000,
+            injection_rate: 1_000,
         }
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) enum ConsensusType {
-    Jasmine,
+    Jasmine {
+        /// Consensus Engine will not generate in-between blocks
+        /// if actual payload length is less than this value.
+        /// This is to prevent the network from being flooded with
+        /// empty blocks.
+        minimal_batch_size: usize,
+    },
     HotStuff,
 }
 
 impl Default for ConsensusType {
     fn default() -> Self {
-        Self::Jasmine
+        Self::Jasmine {
+            minimal_batch_size: 40,
+        }
     }
 }
 
 impl ConsensusType {
     pub(crate) fn is_jasmine(&self) -> bool {
-        matches!(self, Self::Jasmine)
+        matches!(self, Self::Jasmine { .. })
     }
 }
 

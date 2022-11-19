@@ -58,11 +58,20 @@ impl CommandGetter for CommandGenerator {
         }
         commands
     }
+
+    fn get_commands_with_lowerbound(&mut self, _minimal: usize) -> Option<Vec<Transaction>> {
+        return Some(self.get_commands());
+    }
 }
 
 pub(crate) trait CommandGetter: Send + Sync {
     /// Try best to get commands from the source.
     fn get_commands(&mut self) -> Vec<Transaction>;
+
+    /// Try best to get commands from the source.
+    ///
+    /// If commands less than minimal, return None.
+    fn get_commands_with_lowerbound(&mut self, minimal: usize) -> Option<Vec<Transaction>>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -202,19 +211,36 @@ impl BlockTree {
     ///
     /// * `justify`:
     pub(crate) fn new_block(&mut self, justify: QC, block_type: BlockType) -> Block {
+        self.new_block_with_lowerbound(justify, block_type, 0)
+            .expect("lowerbound already set to 0")
+    }
+
+    pub(crate) fn new_block_with_lowerbound(
+        &mut self,
+        justify: QC,
+        block_type: BlockType,
+        lowerbound: usize,
+    ) -> Option<Block> {
         let prev = &self.get(self.latest).unwrap().0;
-        let block = self
-            .block_generator
-            .new_block(prev.hash(), prev.height, justify);
-        // update parent_key_block
-        if block_type == BlockType::Key {
-            self.parent_key_block
-                .insert(block.hash(), self.latest_key_block);
-            self.latest_key_block = block.hash();
-        }
-        self.insert(block.to_owned(), block_type);
-        self.latest = block.hash();
-        block
+        let block = self.block_generator.new_block_with_lowerbound(
+            prev.hash(),
+            prev.height,
+            justify,
+            lowerbound,
+        );
+
+        block.map(|block| {
+            // update parent_key_block
+            if block_type == BlockType::Key {
+                self.parent_key_block
+                    .insert(block.hash(), self.latest_key_block);
+                self.latest_key_block = block.hash();
+            }
+            self.insert(block.to_owned(), block_type);
+            self.latest = block.hash();
+
+            block
+        })
     }
 
     /// If the block is finalized.
@@ -353,8 +379,19 @@ impl BlockGenerator {
     }
 
     fn new_block(&mut self, prev_hash: Hash, prev_height: usize, justify: QC) -> Block {
-        let payloads = self.mempool.get_commands();
-        Block::new(prev_hash, prev_height, justify, payloads)
+        self.new_block_with_lowerbound(prev_hash, prev_height, justify, 0)
+            .unwrap()
+    }
+
+    fn new_block_with_lowerbound(
+        &mut self,
+        prev_hash: Hash,
+        prev_height: usize,
+        justify: QC,
+        lowerbound: usize,
+    ) -> Option<Block> {
+        let payloads = self.mempool.get_commands_with_lowerbound(lowerbound);
+        payloads.map(|payloads| Block::new(prev_hash, prev_height, justify, payloads))
     }
 }
 

@@ -55,4 +55,23 @@ impl CommandGetter for Mempool {
             }
         }
     }
+
+    fn get_commands_with_lowerbound(&mut self, minimal: usize) -> Option<Vec<Transaction>> {
+        {
+            let mut pool = self.pool.lock();
+
+            if pool.len() >= minimal {
+                if pool.len() >= self.config.get_node_settings().batch_size {
+                    Some(
+                        pool.drain(..self.config.get_node_settings().batch_size)
+                            .collect(),
+                    )
+                } else {
+                    Some(pool.drain(..).collect())
+                }
+            } else {
+                None
+            }
+        }
+    }
 }
