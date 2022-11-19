@@ -86,12 +86,6 @@ impl VoterState {
         }
     }
 
-    // pub(crate) fn add_qc(&self, qc: QC) -> u64 {
-    //     if qc.view > self.view {
-    //         self.view = qc.view;
-    //     }
-    // }
-
     pub(crate) fn best_view_ref(&self) -> Arc<AtomicU64> {
         self.best_view.to_owned()
     }
@@ -141,6 +135,7 @@ impl Environment {
 pub(crate) struct Voter {
     id: u64,
     config: NodeConfig,
+    /// Only used when initialize ConsensusVoter.
     view: u64,
     env: Arc<Mutex<Environment>>,
 }
@@ -171,14 +166,65 @@ impl Voter {
         }
     }
 
-    fn package_message(id: u64, message: Message, view: u64, to: Option<u64>) -> NetworkPackage {
-        NetworkPackage {
-            id,
-            to,
-            view: Some(view),
-            message,
-            signature: 0,
+    pub(crate) async fn start(&mut self) {
+        // Start from view 0, and keep increasing the view number
+        let generic_qc = self.env.lock().block_tree.genesis().0.justify.clone();
+        let voters = self.env.lock().voter_set.to_owned();
+        let state = Arc::new(Mutex::new(VoterState::new(
+            self.id,
+            self.view,
+            generic_qc,
+            voters.threshold(),
+        )));
+        let notify = state.lock().best_view_ref();
+
+        let voter = ConsensusVoter::new(
+            self.config.to_owned(),
+            state.to_owned(),
+            self.env.to_owned(),
+            notify.to_owned(),
+        );
+        let leader = voter.clone();
+
+        let handler1 = tokio::spawn(async {
+            leader.run_as_leader().await;
+        });
+        let handler2 = tokio::spawn(async {
+            voter.run_as_voter().await;
+        });
+        tokio::join!(handler1, handler2);
+    }
+}
+
+#[derive(Clone)]
+struct ConsensusVoter {
+    config: NodeConfig,
+    state: Arc<Mutex<VoterState>>,
+    env: Arc<Mutex<Environment>>,
+    collect_view: Arc<AtomicU64>,
+}
+
+impl ConsensusVoter {
+    fn new(
+        config: NodeConfig,
+        state: Arc<Mutex<VoterState>>,
+        env: Arc<Mutex<Environment>>,
+        collect_view: Arc<AtomicU64>,
+    ) -> Self {
+        Self {
+            config,
+            state,
+            env,
+            collect_view,
         }
+    }
+
+    fn get_leader(view: u64, voters: &VoterSet) -> u64 {
+        voters
+            .voters
+            .get(((view / 100) % voters.voters.len() as u64) as usize)
+            .unwrap()
+            .to_owned()
     }
 
     fn new_in_between_block(
@@ -194,6 +240,16 @@ impl Voter {
             .map(|blk| Self::package_message(id, Message::ProposeInBetween(blk), view, None))
     }
 
+    fn package_message(id: u64, message: Message, view: u64, to: Option<u64>) -> NetworkPackage {
+        NetworkPackage {
+            id,
+            to,
+            view: Some(view),
+            message,
+            signature: 0,
+        }
+    }
+
     fn new_key_block(
         env: Arc<Mutex<Environment>>,
         view: u64,
@@ -204,64 +260,16 @@ impl Voter {
         Self::package_message(id, Message::Propose(block), view, None)
     }
 
-    // -> id
-    fn get_leader(view: u64, voters: &VoterSet) -> u64 {
-        voters
-            .voters
-            .get(((view / 100) % voters.voters.len() as u64) as usize)
-            .unwrap()
-            .to_owned()
-    }
-
-    pub(crate) async fn start(&mut self) {
-        // Start from view 0, and keep increasing the view number
-        let generic_qc = self.env.lock().block_tree.genesis().0.justify.clone();
-        let voters = self.env.lock().voter_set.to_owned();
-        let state = Arc::new(Mutex::new(VoterState::new(
-            self.id,
-            self.view,
-            generic_qc,
-            voters.threshold(),
-        )));
-        let notify = state.lock().best_view_ref();
-
-        let voter = Self::voter(
-            self.config.to_owned(),
-            state.to_owned(),
-            self.env.to_owned(),
-            notify.to_owned(),
-        );
-        let leader = Self::leader(
-            self.config.to_owned(),
-            state.to_owned(),
-            self.env.to_owned(),
-            notify.to_owned(),
-        );
-
-        let handler1 = tokio::spawn(async {
-            leader.await;
-        });
-        let handler2 = tokio::spawn(async {
-            voter.await;
-        });
-        tokio::join!(handler1, handler2);
-    }
-
-    async fn voter(
-        _config: NodeConfig,
-        state: Arc<Mutex<VoterState>>,
-        env: Arc<Mutex<Environment>>,
-        _collect_view: Arc<AtomicU64>,
-    ) {
-        let id = state.lock().id;
-        let finalized_block_tx = env.lock().finalized_block_tx.to_owned();
+    async fn run_as_voter(self) {
+        let id = self.state.lock().id;
+        let finalized_block_tx = self.env.lock().finalized_block_tx.to_owned();
         let voters = {
-            let env = env.lock();
+            let env = self.env.lock();
             env.voter_set.to_owned()
         };
         // println!("{}: voter start", id);
         let (mut rx, tx) = {
-            let mut env = env.lock();
+            let mut env = self.env.lock();
             let rx = env.network.take_receiver();
             let tx = env.network.get_sender();
             (rx, tx)
@@ -270,7 +278,7 @@ impl Voter {
             tracing::trace!("{}: voter receive pkg: {:?}", id, pkg);
             let from = pkg.id;
             let view = pkg.view.unwrap();
-            if view < state.lock().view - 1 {
+            if view < self.state.lock().view - 1 {
                 continue;
             }
             let message = pkg.message;
@@ -278,21 +286,39 @@ impl Voter {
                 Message::Propose(block) => {
                     // TODO: valid block
 
-                    env.lock()
+                    self.env
+                        .lock()
                         .block_tree
                         .add_block(block.clone(), BlockType::Key);
 
                     // TODO: SafeNode
                     let hash = block.hash();
                     let b_x = block.justify.node;
-                    let b_y = env.lock().block_tree.get_block(b_x).unwrap().0.justify.node;
-                    let b_z = env.lock().block_tree.get_block(b_y).unwrap().0.justify.node;
+                    let b_y = self
+                        .env
+                        .lock()
+                        .block_tree
+                        .get_block(b_x)
+                        .unwrap()
+                        .0
+                        .justify
+                        .node;
+                    let b_z = self
+                        .env
+                        .lock()
+                        .block_tree
+                        .get_block(b_y)
+                        .unwrap()
+                        .0
+                        .justify
+                        .node;
 
-                    env.lock()
+                    self.env
+                        .lock()
                         .block_tree
                         .add_block(block.to_owned(), BlockType::Key);
 
-                    let current_view = state.lock().view;
+                    let current_view = self.state.lock().view;
 
                     // Suppose the block is valid, vote for it
                     let pkg = Self::package_message(
@@ -309,14 +335,15 @@ impl Voter {
 
                     tx.send(pkg).await.unwrap();
 
-                    let is_parent = env.lock().block_tree.is_parent(b_x, hash);
+                    let is_parent = self.env.lock().block_tree.is_parent(b_x, hash);
                     if is_parent {
                         // Precommit
-                        state.lock().generic_qc = block.justify.clone();
-                        let is_parent = env.lock().block_tree.is_parent(b_y, b_x);
+                        self.state.lock().generic_qc = block.justify.clone();
+                        let is_parent = self.env.lock().block_tree.is_parent(b_y, b_x);
                         if is_parent {
                             // Commit
-                            state.lock().locked_qc = env
+                            self.state.lock().locked_qc = self
+                                .env
                                 .lock()
                                 .block_tree
                                 .get_block(b_x)
@@ -324,13 +351,13 @@ impl Voter {
                                 .0
                                 .justify
                                 .clone();
-                            let is_parent = env.lock().block_tree.is_parent(b_z, b_y);
+                            let is_parent = self.env.lock().block_tree.is_parent(b_z, b_y);
                             // if id == 1 {
                             //     println!("{}: {} {} is_parent: {}", id, b_z, b_y, is_parent);
                             // }
                             if is_parent {
                                 // Decide/Finalize
-                                let finalized_blocks = env.lock().block_tree.finalize(b_z);
+                                let finalized_blocks = self.env.lock().block_tree.finalize(b_z);
                                 if let Some(tx) = finalized_block_tx.as_ref() {
                                     for block in finalized_blocks {
                                         tx.send(block).await.unwrap();
@@ -341,7 +368,7 @@ impl Voter {
                     }
 
                     // Finish the view
-                    state.lock().view_add_one();
+                    self.state.lock().view_add_one();
                     tracing::trace!("{}: voter finish view: {}", id, current_view);
                 }
                 Message::ProposeInBetween(block) => {
@@ -349,41 +376,39 @@ impl Voter {
                     let _hash = block.hash();
 
                     // Add block to block tree
-                    env.lock().block_tree.add_block(block, BlockType::InBetween);
+                    self.env
+                        .lock()
+                        .block_tree
+                        .add_block(block, BlockType::InBetween);
                 }
                 Message::Vote(block_hash) => {
-                    state.lock().add_vote(view, block_hash, from);
+                    self.state.lock().add_vote(view, block_hash, from);
                 }
             }
             tracing::trace!("waiting!");
         }
     }
 
-    async fn leader(
-        config: NodeConfig,
-        state: Arc<Mutex<VoterState>>,
-        env: Arc<Mutex<Environment>>,
-        collect_view: Arc<AtomicU64>,
-    ) {
-        let id = state.lock().id;
+    async fn run_as_leader(self) {
+        let id = self.state.lock().id;
 
         // println!("{}: leader start", id);
 
         loop {
-            let tx = env.lock().network.get_sender();
+            let tx = self.env.lock().network.get_sender();
             // println!("{}: leader: test", id);
             // TODO: no need to clone.
-            let voters = env.lock().voter_set.clone();
-            let view = state.lock().view;
+            let voters = self.env.lock().voter_set.clone();
+            let view = self.state.lock().view;
 
-            if config.get_test_mode().delay_test && view > 6 {
+            if self.config.get_test_mode().delay_test && view > 6 {
                 exit(0)
             }
 
             if Self::get_leader(view, &voters) == id {
                 // println!("{}: leader: I am the leader of view {}", id, view);
                 // qc for in-between blocks
-                let generic_qc = { state.lock().generic_qc.to_owned() };
+                let generic_qc = { self.state.lock().generic_qc.to_owned() };
 
                 // let timeout = tokio::time::sleep(tokio::time::Duration::from_millis(1000));
                 // tokio::pin!(timeout);
@@ -391,12 +416,12 @@ impl Voter {
                 // let fu = futures::future::poll_fn(|cx| Poll::Ready(()));
 
                 // TODO: loop until timeout or get enough votes
-                while collect_view.load(Ordering::SeqCst) + 1 < view {
+                while self.collect_view.load(Ordering::SeqCst) + 1 < view {
                     if let crate::node_config::ConsensusType::Jasmine { minimal_batch_size } =
-                        config.get_consensus_type()
+                        self.config.get_consensus_type()
                     {
                         let pkg = Self::new_in_between_block(
-                            env.to_owned(),
+                            self.env.to_owned(),
                             view,
                             generic_qc.to_owned(),
                             id,
@@ -411,14 +436,14 @@ impl Voter {
                     }
                 }
 
-                let generic_qc = state.lock().generic_qc.clone();
-                let pkg = Self::new_key_block(env.to_owned(), view, generic_qc, id);
+                let generic_qc = self.state.lock().generic_qc.clone();
+                let pkg = Self::new_key_block(self.env.to_owned(), view, generic_qc, id);
                 tracing::trace!("{}: leader: send propose", id);
 
                 tx.send(pkg).await.unwrap();
             }
 
-            let notify = state.lock().notify.clone();
+            let notify = self.state.lock().notify.clone();
             // awake if the view is changed.
             notify.notified().await;
         }
