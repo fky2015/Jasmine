@@ -63,7 +63,7 @@ impl Metrics {
             self.total_delay += (finalized_time - block.timestamp) * block.payloads.len() as u64;
 
             if self.config.get_metrics().trace_finalization {
-                tracing::trace!(
+                tracing::info!(
                     "Finalized block {} with {} transactions in {} ms, start: {}",
                     block.height,
                     block.payloads.len(),

@@ -12,4 +12,8 @@ End-to-end performance is calculated via T1 and T3, and
 Consensus performance is calculated via T2 and T3.
 
 
+## TODO
 
+- [ ] Error handle
+- [ ] export metrics / benchmarks
+- [ ] e2e test in WAN

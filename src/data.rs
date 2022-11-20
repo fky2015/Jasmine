@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
+use tracing::{debug, trace, warn};
 
 use crate::{client::FakeClient, mempool::Mempool, node_config::NodeConfig};
 
@@ -80,6 +81,12 @@ pub struct QC {
     pub view: u64,
 }
 
+impl QC {
+    pub fn new(node: Hash, view: u64) -> Self {
+        Self { node, view }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
     pub payload: Vec<u8>,
@@ -154,16 +161,25 @@ pub(crate) enum BlockType {
 }
 
 pub(crate) struct BlockTree {
+    pub(crate) config: NodeConfig,
     pub(crate) blocks: HashMap<Hash, (Block, BlockType)>,
     pub(crate) finalized_time: HashMap<Hash, u64>,
-    pub(crate) latest: Hash,
     /// latest finalized block (always key block)
     pub(crate) finalized: Hash,
     pub(crate) block_generator: BlockGenerator,
     // pub(crate) finalized_block_tx: Option<Sender<(Block, BlockType, u64)>>,
     pub(crate) parent_key_block: HashMap<Hash, Hash>,
+    /// We always make leaf block as a child of latest_key_block.
+    /// This is equivalent to the B_leaf in the Pseudocode.
     pub(crate) latest_key_block: Hash,
+    /// The latest block we are tracking.
+    /// This is always a direct descendant of latest_key_block.
+    /// This is used to track in-between blocks.
+    pub(crate) latest: Hash,
     pub(crate) enable_metrics: bool,
+    /// Tracking all the leaves that is not latest_key_block.
+    /// Then we can easily garbage collect the blocks.
+    pub(crate) other_leaves: Vec<Hash>,
 }
 
 impl BlockTree {
@@ -178,6 +194,7 @@ impl BlockTree {
         parent_key_block.insert(genesis.hash(), genesis.hash());
 
         Self {
+            config: config.clone(),
             blocks,
             latest: genesis.hash(),
             finalized: genesis.hash(),
@@ -186,6 +203,7 @@ impl BlockTree {
             parent_key_block,
             latest_key_block: genesis.hash(),
             enable_metrics: false,
+            other_leaves: Vec::new(),
         }
     }
 
@@ -194,7 +212,16 @@ impl BlockTree {
     }
 
     fn insert(&mut self, block: Block, block_type: BlockType) {
-        // update latest
+        // update self.latest if higher
+        {
+            debug!(
+                "{}: self.latest: {} < block: {}, block: {:?}",
+                self.config.get_id(),
+                self.latest,
+                block.height,
+                block
+            );
+        }
         if self.blocks.get(&self.latest).unwrap().0.height < block.height {
             self.latest = block.hash();
         }
@@ -206,15 +233,70 @@ impl BlockTree {
         self.get(0).unwrap()
     }
 
+    /// New key block always be built upon latest_key_block.
+    pub(crate) fn new_key_block(&mut self, justify: QC) -> Block {
+        // if self.latest_key_block is parent key block of self.latest,
+        // generate leaf on top of self.latest
+        //
+        // otherwise, generate leaf on top of self.latest_key_block
+
+        let mut current = self.blocks.get(&self.latest).unwrap();
+        while current.1 == BlockType::InBetween {
+            current = self.blocks.get(&current.0.prev_hash).unwrap();
+        }
+
+        let parent = if current.0.hash() == self.latest_key_block {
+            self.latest
+        } else {
+            // This will lead to a chain fork.
+            self.other_leaves.push(self.latest);
+            self.latest_key_block
+        };
+        let prev = &self.get(parent).unwrap().0;
+        let block = self
+            .block_generator
+            .new_block(prev.hash(), prev.height, justify);
+
+        // update parent_key_block
+        self.parent_key_block
+            .insert(block.hash(), self.latest_key_block);
+        self.latest_key_block = block.hash();
+        self.insert(block.to_owned(), BlockType::Key);
+        self.latest = block.hash();
+
+        block
+    }
+
+    /// New key block always be built upon latest.
+    pub(crate) fn new_in_between_block(&mut self, justify: QC, lowerbound: usize) -> Option<Block> {
+        let prev = &self.get(self.latest).unwrap().0;
+        let block = self.block_generator.new_block_with_lowerbound(
+            prev.hash(),
+            prev.height,
+            justify,
+            lowerbound,
+        );
+
+        block.map(|block| {
+            // update parent_key_block
+            self.insert(block.to_owned(), BlockType::InBetween);
+            self.latest = block.hash();
+
+            block
+        })
+    }
+
     // TODO:
     /// Generate a new block based on the latest block.
     ///
     /// * `justify`:
+    /// DEPRECATED: This is only used for testing.
     pub(crate) fn new_block(&mut self, justify: QC, block_type: BlockType) -> Block {
         self.new_block_with_lowerbound(justify, block_type, 0)
             .expect("lowerbound already set to 0")
     }
 
+    /// DEPRECATED:
     pub(crate) fn new_block_with_lowerbound(
         &mut self,
         justify: QC,
@@ -246,7 +328,7 @@ impl BlockTree {
     /// If the block is finalized.
     ///
     /// * `block`: the block to be checked.
-    pub(crate) fn finalized(&mut self, block: Hash) -> bool {
+    pub(crate) fn finalized(&self, block: Hash) -> bool {
         self.finalized_time.contains_key(&block)
     }
 
@@ -281,6 +363,7 @@ impl BlockTree {
             current = self.get(current).unwrap().0.prev_hash;
         }
 
+        // TODO: config this value
         if self.finalized_time.len() > 200 {
             // Start pruning
             let mut current = self.finalized;
@@ -304,17 +387,34 @@ impl BlockTree {
         // println!("finalized: {}", self.finalized_time.len())
     }
 
-    pub(crate) fn add_block(&mut self, block: Block, block_type: BlockType) {
-        if self.get(block.hash()).is_none() {
-            if block_type == BlockType::Key {
-                self.parent_key_block
-                    .insert(block.hash(), self.latest_key_block);
-                self.latest_key_block = block.hash();
-            }
-            self.insert(block, block_type);
+    pub(crate) fn debug_blocks(&self) {
+        return;
+        // order by hash
+        let mut blocks: Vec<(&Hash, &(Block, BlockType))> = self.blocks.iter().collect();
+        blocks.sort_by(|a, b| a.0.cmp(b.0));
+        println!("=======");
+        for (hash, (block, block_type)) in blocks {
+            println!(
+                "hash: {}, height: {}, type: {:?}, parent: {}, QC: {:?}",
+                hash, block.height, block_type, block.prev_hash, block.justify
+            );
         }
     }
 
+    pub(crate) fn add_block(&mut self, block: Block, block_type: BlockType) {
+        // TODO: decide whether should overwrite a block.
+        if block_type == BlockType::Key {
+            // Add it to self.parent_key_block
+            let mut parent = self.blocks.get(&block.prev_hash).unwrap();
+            while parent.1 == BlockType::InBetween {
+                parent = self.blocks.get(&parent.0.prev_hash).unwrap();
+            }
+            self.parent_key_block.insert(block.hash(), parent.0.hash());
+        }
+        self.insert(block, block_type);
+    }
+
+    /// If child is a direct descendant of parent.
     // must be key blocks
     pub(crate) fn is_parent(&self, parent: Hash, child: Hash) -> bool {
         self.parent_key_block.get(&child) == Some(&parent)
@@ -330,6 +430,26 @@ impl BlockTree {
         // true
     }
 
+    /// If child is a descendant of parent.
+    // must be key blocks
+    pub(crate) fn extends(&self, parent: Hash, child: Hash) -> bool {
+        let mut current = child;
+        while current != parent {
+            if self.blocks.get(&current).unwrap().0.height
+                <= self.blocks.get(&parent).unwrap().0.height
+            {
+                // Not in the same chain
+                return false;
+            }
+            current = match self.parent_key_block.get(&current) {
+                Some(parent) => *parent,
+                // Should not prune if there is no parent key block.
+                None => return false,
+            };
+        }
+        true
+    }
+
     pub(crate) fn get_block(&self, hash: Hash) -> Option<&(Block, BlockType)> {
         self.get(hash)
     }
@@ -340,13 +460,77 @@ impl BlockTree {
 
     fn prune(&mut self, block: Hash) {
         let mut current = block;
+        debug!("current: {}", current);
         if !self.finalized(current) {
             return;
         }
+
+        // Retain only if the leaf is not finalized and we saved the whole block.
+        self.other_leaves.retain(|&hash| {
+            self.blocks.contains_key(&hash)
+                && !self.finalized_time.contains_key(&hash)
+                && hash != self.latest
+        });
+
+        // Prepare to delete those whose leaf is lower than the target block.
+        let drained_leaves = self
+            .other_leaves
+            .drain_filter(|hash| {
+                debug!(
+                    "left: {} < right {}, {:?}",
+                    hash,
+                    block,
+                    self.blocks.get(&block)
+                );
+                self.blocks.get(hash).unwrap().0.height < self.blocks.get(&block).unwrap().0.height
+            })
+            .collect::<Vec<_>>();
+
+        // Delete blocks info until find a finalized block or empty.
+        drained_leaves.into_iter().for_each(|mut current| {
+            while !self.finalized(current) {
+                let parent = match self.get(current) {
+                    Some((block, _)) => block.prev_hash,
+                    None => break,
+                };
+                self.blocks.remove(&current);
+                current = parent;
+            }
+        });
+
         while let Some((_, (block, _))) = self.blocks.remove_entry(&current) {
             self.finalized_time.remove(&current);
             self.parent_key_block.remove(&current);
             current = block.prev_hash;
+        }
+    }
+
+    fn get_parent_key_block(&self, in_between: Hash) -> Hash {
+        let mut current = self.get(in_between).unwrap();
+        while current.1 != BlockType::Key {
+            current = self.get(current.0.prev_hash).unwrap();
+        }
+
+        current.0.hash()
+    }
+
+    pub(crate) fn switch_latest_key_block(&mut self, node: u64) {
+        // if self.latest_key_block, self.latest,
+        // and node is on the same chain, then there is no fork.
+
+        if self.extends(self.latest_key_block, node) {
+            let latest_key = self.get_parent_key_block(self.latest);
+
+            if self.extends(node, latest_key) || self.extends(latest_key, node) {
+                self.latest_key_block = node;
+            } else {
+                self.latest_key_block = node;
+                self.other_leaves.push(self.latest);
+                self.latest = node;
+            }
+        } else {
+            self.latest_key_block = node;
+            self.other_leaves.push(self.latest);
         }
     }
 }

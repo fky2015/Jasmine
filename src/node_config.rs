@@ -53,8 +53,8 @@ pub(crate) struct ClientConfig {
 impl Default for ClientConfig {
     fn default() -> Self {
         Self {
-            use_instant_generator: false,
-            injection_rate: 1_000,
+            use_instant_generator: true,
+            injection_rate: 1_000_000_000,
         }
     }
 }
@@ -91,6 +91,8 @@ pub(crate) struct TestMode {
     pub(crate) delay_test: bool,
     #[serde(default)]
     pub(crate) memory_test: bool,
+    #[serde(default)]
+    pub(crate) fault_tolerance_test: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
@@ -239,7 +241,22 @@ impl NodeConfig {
     }
 
     pub fn get_voter_set(&self) -> VoterSet {
-        VoterSet::new(self.peer_addrs.keys().cloned().collect())
+        let mut v: Vec<u64> = self.peer_addrs.keys().cloned().collect();
+        // sort
+        v.sort();
+        VoterSet::new(v)
+    }
+
+    pub fn override_voter_set(&mut self, voter_set: &VoterSet) {
+        let mut peer_addrs = HashMap::new();
+        voter_set.iter().for_each(|id| {
+            peer_addrs.insert(
+                *id,
+                "localhost:8123".to_socket_addrs().unwrap().next().unwrap(),
+            );
+        });
+
+        self.peer_addrs = peer_addrs;
     }
 
     pub fn get_client_config(&self) -> &ClientConfig {
@@ -286,6 +303,12 @@ pub(crate) enum Commands {
     MemoryTest {
         /// Number of nodes.
         #[arg(short, long, default_value_t = 4)]
+        number: u64,
+    },
+
+    FailTest {
+        /// Number of failures.
+        #[arg(short, long, default_value_t = 1)]
         number: u64,
     },
 }
