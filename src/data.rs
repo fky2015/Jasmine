@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
-use tracing::{debug, trace, warn};
+use tracing::{debug, trace};
 
 use crate::{client::FakeClient, mempool::Mempool, node_config::NodeConfig};
 
@@ -61,7 +61,7 @@ impl CommandGetter for CommandGenerator {
     }
 
     fn get_commands_with_lowerbound(&mut self, _minimal: usize) -> Option<Vec<Transaction>> {
-        return Some(self.get_commands());
+        Some(self.get_commands())
     }
 }
 

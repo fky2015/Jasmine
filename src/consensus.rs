@@ -11,7 +11,6 @@ use std::{
         atomic::{AtomicU64, Ordering},
         Arc,
     },
-    time::Instant,
 };
 
 use tokio::sync::{mpsc::Sender, Notify};
@@ -344,7 +343,7 @@ impl ConsensusVoter {
         }
     }
 
-    async fn run_as_voter(mut self) {
+    async fn run_as_voter(self) {
         let id = self.state.lock().id;
         let finalized_block_tx = self.env.lock().finalized_block_tx.to_owned();
         let voters = {

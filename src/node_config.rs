@@ -3,7 +3,7 @@ use clap::Parser;
 use std::{
     collections::HashMap,
     net::{SocketAddr, ToSocketAddrs},
-    path::{Path, PathBuf},
+    path::{PathBuf},
 };
 
 use serde::{Deserialize, Serialize};

@@ -10,7 +10,7 @@ use network::{MemoryNetwork, MemoryNetworkAdaptor, TcpNetwork};
 use parking_lot::{Mutex, deadlock};
 use tokio::task::JoinHandle;
 use tracing::info;
-use tracing_subscriber::FmtSubscriber;
+
 
 use anyhow::Result;
 
