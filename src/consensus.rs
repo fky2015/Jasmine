@@ -265,7 +265,6 @@ struct ConsensusVoter {
     state: Arc<Mutex<VoterState>>,
     env: Arc<Mutex<Environment>>,
     collect_view: Arc<AtomicU64>,
-    latest_vote_time: Instant,
 }
 
 impl ConsensusVoter {
@@ -280,12 +279,7 @@ impl ConsensusVoter {
             state,
             env,
             collect_view,
-            latest_vote_time: Instant::now(),
         }
-    }
-
-    fn update_latest_vote_time(&mut self) {
-        self.latest_vote_time = Instant::now();
     }
 
     fn get_leader(view: u64, voters: &VoterSet) -> u64 {
@@ -380,10 +374,13 @@ impl ConsensusVoter {
             let view = pkg.view.unwrap();
             let current_view = self.state.lock().view;
             if view < current_view - 1 {
-                warn!(
-                    "{}: voter receive pkg from {} with view {} which is too old",
-                    id, from, view
-                );
+                // trace!(
+                //     "{}: voter receive pkg from {} with view {} which is too old, pkg: {:?}",
+                //     id,
+                //     from,
+                //     view,
+                //     pkg
+                // );
                 continue;
             }
             let message = pkg.message;
@@ -401,24 +398,22 @@ impl ConsensusVoter {
                     }
                     let hash = block.hash();
 
-                    trace!("{}: add_block: {:?}", id, block);
                     // WARN: As a POC, we suppose all the blocks are valid by application logic.
-                    self.env
-                        .lock()
-                        .block_tree
-                        .add_block(block.clone(), BlockType::Key);
+                    if from != id {
+                        self.env
+                            .lock()
+                            .block_tree
+                            .add_block(block.clone(), BlockType::Key);
+                    }
 
                     // onReceiveProposal
                     if let Some(pkg) = {
-                        trace!("{}: try get locked_qc", id);
                         let locked_qc = self.state.lock().locked_qc.clone();
-                        trace!("{}: try get safety: {}", id, self.env.try_lock().is_some());
                         let safety = self
                             .env
                             .lock()
                             .block_tree
                             .extends(locked_qc.node, block.hash());
-                        trace!("{}: try get liveness", id);
                         let liveness = block.justify.view >= locked_qc.view;
 
                         if view > voted_view && (safety || liveness) {
@@ -514,18 +509,19 @@ impl ConsensusVoter {
                     // Finish the view
                     self.state.lock().view_add_one();
 
-                    self.update_latest_vote_time();
                     tracing::trace!("{}: voter finish view: {}", id, current_view);
                 }
                 Message::ProposeInBetween(block) => {
                     // TODO: valid block
                     let _hash = block.hash();
 
-                    // Add block to block tree
-                    self.env
-                        .lock()
-                        .block_tree
-                        .add_block(block, BlockType::InBetween);
+                    if from != id {
+                        // Add block to block tree
+                        self.env
+                            .lock()
+                            .block_tree
+                            .add_block(block, BlockType::InBetween);
+                    }
                 }
                 Message::Vote(block_hash) => {
                     // onReceiveVote
@@ -536,19 +532,10 @@ impl ConsensusVoter {
                         self.update_qc_high(qc);
                         self.state.lock().set_best_view(view);
                     }
-
-                    self.update_latest_vote_time()
                 }
                 Message::NewView(high_qc) => {
                     self.update_qc_high(high_qc);
                     self.state.lock().add_new_view(view, from);
-                }
-            }
-
-            {
-                if self.config.get_id() == 2 {
-                    // DELETE: debug
-                    self.env.lock().block_tree.debug_blocks();
                 }
             }
         }
@@ -626,14 +613,18 @@ impl ConsensusVoter {
         let id = self.config.get_id();
 
         loop {
+            let past_view = self.state.lock().view;
             let next_awake = tokio::time::Instant::now() + timeout;
+            trace!("{}: pacemaker start", id);
             tokio::time::sleep_until(next_awake).await;
+            trace!("{}: pacemaker awake", id);
 
             // If last vote is received later then 1s ago, then continue to sleep.
-            if self.latest_vote_time.elapsed() < timeout {
+            let current_view = self.state.lock().view;
+            if current_view != past_view {
                 continue;
             }
-            trace!("{} timeout!!!", id);
+            warn!("{} timeout!!!", id);
 
             // otherwise, try send a new-view message to nextleader
             let (next_leader, next_leader_view) = self.get_next_leader();

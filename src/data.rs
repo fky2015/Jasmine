@@ -214,13 +214,16 @@ impl BlockTree {
     fn insert(&mut self, block: Block, block_type: BlockType) {
         // update self.latest if higher
         {
-            debug!(
-                "{}: self.latest: {} < block: {}, block: {:?}",
-                self.config.get_id(),
-                self.latest,
-                block.height,
-                block
-            );
+            if self.blocks.contains_key(&block.hash()) {
+                trace!(
+                    "{}: CONFLICT: self.latest: {} < block: {}, block: {:?}, {:?}",
+                    self.config.get_id(),
+                    self.latest,
+                    block.height,
+                    block,
+                    self.blocks,
+                );
+            }
         }
         if self.blocks.get(&self.latest).unwrap().0.height < block.height {
             self.latest = block.hash();
@@ -291,39 +294,39 @@ impl BlockTree {
     ///
     /// * `justify`:
     /// DEPRECATED: This is only used for testing.
-    pub(crate) fn new_block(&mut self, justify: QC, block_type: BlockType) -> Block {
-        self.new_block_with_lowerbound(justify, block_type, 0)
-            .expect("lowerbound already set to 0")
-    }
+    // pub(crate) fn new_block(&mut self, justify: QC, block_type: BlockType) -> Block {
+    //     self.new_block_with_lowerbound(justify, block_type, 0)
+    //         .expect("lowerbound already set to 0")
+    // }
 
     /// DEPRECATED:
-    pub(crate) fn new_block_with_lowerbound(
-        &mut self,
-        justify: QC,
-        block_type: BlockType,
-        lowerbound: usize,
-    ) -> Option<Block> {
-        let prev = &self.get(self.latest).unwrap().0;
-        let block = self.block_generator.new_block_with_lowerbound(
-            prev.hash(),
-            prev.height,
-            justify,
-            lowerbound,
-        );
-
-        block.map(|block| {
-            // update parent_key_block
-            if block_type == BlockType::Key {
-                self.parent_key_block
-                    .insert(block.hash(), self.latest_key_block);
-                self.latest_key_block = block.hash();
-            }
-            self.insert(block.to_owned(), block_type);
-            self.latest = block.hash();
-
-            block
-        })
-    }
+    // pub(crate) fn new_block_with_lowerbound(
+    //     &mut self,
+    //     justify: QC,
+    //     block_type: BlockType,
+    //     lowerbound: usize,
+    // ) -> Option<Block> {
+    //     let prev = &self.get(self.latest).unwrap().0;
+    //     let block = self.block_generator.new_block_with_lowerbound(
+    //         prev.hash(),
+    //         prev.height,
+    //         justify,
+    //         lowerbound,
+    //     );
+    //
+    //     block.map(|block| {
+    //         // update parent_key_block
+    //         if block_type == BlockType::Key {
+    //             self.parent_key_block
+    //                 .insert(block.hash(), self.latest_key_block);
+    //             self.latest_key_block = block.hash();
+    //         }
+    //         self.insert(block.to_owned(), block_type);
+    //         self.latest = block.hash();
+    //
+    //         block
+    //     })
+    // }
 
     /// If the block is finalized.
     ///

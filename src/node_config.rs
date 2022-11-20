@@ -54,7 +54,7 @@ impl Default for ClientConfig {
     fn default() -> Self {
         Self {
             use_instant_generator: true,
-            injection_rate: 1_000_000_000,
+            injection_rate: 1_000_000,
         }
     }
 }
