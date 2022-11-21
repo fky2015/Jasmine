@@ -1,15 +1,11 @@
 // TODO: use thiserror
 use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
-use std::{collections::HashMap, net::SocketAddr};
+use std::{collections::HashMap, net::SocketAddr, time::Duration};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-
-use crate::{
-    consensus::{NetworkPackage},
-};
+use crate::consensus::NetworkPackage;
 use tokio::{
-    io::{AsyncReadExt},
     net::{TcpListener, TcpStream},
     sync::mpsc::{self, channel, Receiver, Sender},
 };
@@ -80,7 +76,6 @@ pub struct TcpNetwork {
     // this belongs to the config object.
     addrs: HashMap<u64, SocketAddr>,
     sender: SimpleSender,
-    addr: SocketAddr,
     sender_rx: Receiver<NetworkPackage>,
 }
 
@@ -92,7 +87,6 @@ impl TcpNetwork {
             Self {
                 addrs: config.clone(),
                 sender: SimpleSender::new(),
-                addr,
                 sender_rx,
             }
             .run()
@@ -155,12 +149,12 @@ impl SimpleSender {
         connection.send(data).await.unwrap();
     }
 
-    /// Try to broadcast a message to all peers.
-    pub async fn broadcast(&mut self, addresses: Vec<SocketAddr>, data: Bytes) {
-        for address in addresses {
-            self.send(address, data.clone()).await;
-        }
-    }
+    // Try to broadcast a message to all peers.
+    // pub async fn broadcast(&mut self, addresses: Vec<SocketAddr>, data: Bytes) {
+    //     for address in addresses {
+    //         self.send(address, data.clone()).await;
+    //     }
+    // }
 }
 
 struct Connection {
@@ -176,17 +170,19 @@ impl Connection {
     }
 
     async fn run(&mut self) {
-        // // Try to connect to the peer
-        let (mut writer, mut reader) = match TcpStream::connect(self.address).await {
-            Ok(stream) => {
-                // Turn on TCP_NODELAY to eliminate latency.
-                stream.set_nodelay(true).unwrap();
-                Framed::new(stream, LengthDelimitedCodec::new()).split()
-            }
-            Err(e) => {
-                eprintln!("failed to connect to {}: {}", self.address, e);
-                return;
-            }
+        // Try to connect to the peer
+        let (mut writer, mut reader) = loop {
+            match TcpStream::connect(self.address).await {
+                Ok(stream) => {
+                    // Turn on TCP_NODELAY to eliminate latency.
+                    stream.set_nodelay(true).unwrap();
+                    break Framed::new(stream, LengthDelimitedCodec::new()).split();
+                }
+                Err(e) => {
+                    eprintln!("failed to connect to {}: {}", self.address, e);
+                    tokio::time::sleep(Duration::from_millis(800)).await;
+                }
+            };
         };
 
         loop {

@@ -1,15 +1,16 @@
 use anyhow::Result;
-use clap::Parser;
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
+    fs::File,
+    io::Write,
     net::{SocketAddr, ToSocketAddrs},
-    path::{PathBuf},
+    path::{Path, PathBuf},
 };
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 
-use crate::consensus::VoterSet;
+use crate::{cli::Cli, consensus::VoterSet};
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -80,9 +81,9 @@ impl Default for ConsensusType {
 }
 
 impl ConsensusType {
-    pub(crate) fn is_jasmine(&self) -> bool {
-        matches!(self, Self::Jasmine { .. })
-    }
+    // pub(crate) fn is_jasmine(&self) -> bool {
+    //     matches!(self, Self::Jasmine { .. })
+    // }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
@@ -138,10 +139,21 @@ impl Default for Metrics {
     }
 }
 
+// https://stackoverflow.com/questions/42723065/how-to-sort-hashmap-keys-when-serializing-with-serde
+fn ordered_map<S, T>(value: &HashMap<u64, T>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+    T: Serialize,
+{
+    let ordered: BTreeMap<_, _> = value.iter().collect();
+    ordered.serialize(serializer)
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct NodeConfig {
     id: u64,
     // id, addr
+    #[serde(serialize_with = "ordered_map")]
     peer_addrs: HashMap<u64, SocketAddr>,
 
     #[serde(default)]
@@ -262,53 +274,19 @@ impl NodeConfig {
     pub fn get_client_config(&self) -> &ClientConfig {
         &self.client
     }
-}
 
-#[derive(Parser)]
-#[command(name = "Jasmine")]
-#[command(author = "Feng Kaiyu <loveress01@outlook.com>")]
-#[command(about = "POC Jasmine", version)]
-pub(crate) struct Cli {
-    /// Path to the config file
-    #[arg(short, long, value_name = "FILE")]
-    config: Option<PathBuf>,
+    pub fn set_peer_addrs(&mut self, peer_addrs: HashMap<u64, SocketAddr>) {
+        self.peer_addrs = peer_addrs;
+    }
 
-    /// Set ID of current node.
-    #[arg(short, long, default_value_t = 0)]
-    id: u64,
+    pub fn dry_run(&self) -> Result<String> {
+        Ok(serde_json::to_string_pretty(self)?)
+    }
 
-    /// Addresses of known nodes.
-    #[arg(short, long, default_value_t = String::from("localhost:8123"))]
-    addr: String,
-
-    /// Use HotStuff consensus.
-    #[arg(short, long)]
-    pub(crate) disable_jasmine: bool,
-
-    /// Enable delay_test.
-    #[arg(long)]
-    enable_delay_test: bool,
-
-    /// Disable metrics
-    #[arg(long)]
-    pub(crate) disable_metrics: bool,
-
-    #[command(subcommand)]
-    pub(crate) command: Option<Commands>,
-}
-
-#[derive(Parser)]
-pub(crate) enum Commands {
-    /// Run the node within memory network.
-    MemoryTest {
-        /// Number of nodes.
-        #[arg(short, long, default_value_t = 4)]
-        number: u64,
-    },
-
-    FailTest {
-        /// Number of failures.
-        #[arg(short, long, default_value_t = 1)]
-        number: u64,
-    },
+    pub fn export(&self, full_path: &Path) -> Result<()> {
+        let mut file = File::create(full_path)?;
+        let content = self.dry_run()?;
+        file.write_all(content.as_bytes())?;
+        Ok(())
+    }
 }

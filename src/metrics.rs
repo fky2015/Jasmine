@@ -144,6 +144,7 @@ impl Metrics {
 }
 
 // TODO: Every batch size?
+#[allow(dead_code)]
 struct MetricsSample {
     // ms
     average_delay: f64,

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use serde_big_array::BigArray;
 use tracing::{debug, trace};
 
 use crate::{client::FakeClient, mempool::Mempool, node_config::NodeConfig};
@@ -30,7 +29,8 @@ impl Command {
         bytes
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Self {
+    #[allow(dead_code)]
+    fn deserialize(bytes: &[u8]) -> Self {
         let serialized = String::from_utf8(bytes.to_vec())
             .unwrap()
             .trim_end_matches(char::from(0))
@@ -390,19 +390,19 @@ impl BlockTree {
         // println!("finalized: {}", self.finalized_time.len())
     }
 
-    pub(crate) fn debug_blocks(&self) {
-        return;
-        // order by hash
-        let mut blocks: Vec<(&Hash, &(Block, BlockType))> = self.blocks.iter().collect();
-        blocks.sort_by(|a, b| a.0.cmp(b.0));
-        println!("=======");
-        for (hash, (block, block_type)) in blocks {
-            println!(
-                "hash: {}, height: {}, type: {:?}, parent: {}, QC: {:?}",
-                hash, block.height, block_type, block.prev_hash, block.justify
-            );
-        }
-    }
+    // pub(crate) fn debug_blocks(&self) {
+    //     return;
+    //     // order by hash
+    //     let mut blocks: Vec<(&Hash, &(Block, BlockType))> = self.blocks.iter().collect();
+    //     blocks.sort_by(|a, b| a.0.cmp(b.0));
+    //     println!("=======");
+    //     for (hash, (block, block_type)) in blocks {
+    //         println!(
+    //             "hash: {}, height: {}, type: {:?}, parent: {}, QC: {:?}",
+    //             hash, block.height, block_type, block.prev_hash, block.justify
+    //         );
+    //     }
+    // }
 
     pub(crate) fn add_block(&mut self, block: Block, block_type: BlockType) {
         // TODO: decide whether should overwrite a block.
@@ -476,6 +476,7 @@ impl BlockTree {
         });
 
         // Prepare to delete those whose leaf is lower than the target block.
+        #[allow(clippy::needless_collect)]
         let drained_leaves = self
             .other_leaves
             .drain_filter(|hash| {
@@ -540,7 +541,6 @@ impl BlockTree {
 
 pub(crate) struct BlockGenerator {
     mempool: Box<dyn CommandGetter + Send>,
-    genesis: Block,
 }
 
 impl BlockGenerator {
@@ -552,7 +552,6 @@ impl BlockGenerator {
                     command_size: config.get_node_settings().transaction_size,
                     batch_size: config.get_node_settings().batch_size,
                 }),
-                genesis: Block::genesis(),
             }
         } else {
             let (mempool, tx) = Mempool::spawn_receiver(config.to_owned());
@@ -560,7 +559,6 @@ impl BlockGenerator {
 
             Self {
                 mempool: Box::new(mempool),
-                genesis: Block::genesis(),
             }
         }
     }

@@ -63,9 +63,6 @@ impl VoterState {
             new_views: HashMap::new(),
         }
     }
-    pub(crate) fn get_notify(&mut self) -> Arc<Notify> {
-        self.notify.to_owned()
-    }
 
     pub(crate) fn view_add_one(&mut self) {
         // println!("{}: view add to {}", self.id, self.view + 1);
@@ -132,10 +129,6 @@ impl VoterState {
 
     pub(crate) fn best_view_ref(&self) -> Arc<AtomicU64> {
         self.best_view.to_owned()
-    }
-
-    pub(crate) fn get_best_view(&self) -> u64 {
-        self.best_view.load(Ordering::Relaxed)
     }
 }
 

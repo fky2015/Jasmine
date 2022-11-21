@@ -14,6 +14,8 @@ Consensus performance is calculated via T2 and T3.
 
 ## TODO
 
-- [ ] Error handle
-- [ ] export metrics / benchmarks
+- [ ] Error handles
+- [ ] crypto
+- [ ] exports metrics / benchmarks
 - [ ] e2e test in WAN
+- [ ] batch exports config files.
