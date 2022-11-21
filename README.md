@@ -11,11 +11,62 @@ In our implmentation, there are three timestamps for a single transaction.
 End-to-end performance is calculated via T1 and T3, and 
 Consensus performance is calculated via T2 and T3.
 
+We mainly focus on consensus performance here, since it reflects how consensus
+works.
+
+## Usage
+
+Generate config files for multi replicas over multi hosts.
+
+Let's say we want to distribute 4 replicas over 2 hosts (IP_OF_SERVER_1, IP_OF_SERVER_2).
+
+```Bash
+# cargo r -- config-gen --number <TOTAL_NUMBER> [HOSTS..]
+cargo r -- config-gen --number 4 IP_OF_SERVER_1 IP_OF_SERVER_2 --export-dir configs -w
+```
+
+Now, some files are exported in `./configs`.
+
+Then, distribute these files to corresponding servers.
+
+**Please make sure you have right to login servers via `ssh IP_OF_SERVER`.**
+
+```
+cd ./configs
+
+bash distribute.sh
+```
+
+TODO: Then you may run those via `run.sh`
+
+
+## Test
+
+### Distributes locally
+
+```Bash
+cargo r -- config-gen --number 4 localhost --export-dir configs -w
+```
+
+### Single replica via TCP:
+
+```Bash
+cargo run
+```
+
+### Replicas via memory network
+
+```Bash
+cargo run -- memory-test
+```
+
+### Failure test over memory network
+
+```Bash
+cargo run -- fail-test
+```
 
 ## TODO
 
 - [ ] Error handles
 - [ ] crypto
-- [ ] exports metrics / benchmarks
-- [ ] e2e test in WAN
-- [ ] batch exports config files.
