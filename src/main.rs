@@ -211,7 +211,10 @@ impl ExecutionPlan {
         let mut trap_threads_line = "trap 'kill".to_string();
         for (i, pair) in ret.iter().enumerate() {
             if i == 0 {
-                content.push_str(&format!("./jasmine --config {} --export-path result.json &\n", pair.0.display()));
+                content.push_str(&format!(
+                    "./jasmine --config {} --export-path result.json &\n",
+                    pair.0.display()
+                ));
             } else {
                 content.push_str(&format!(
                     "./jasmine --config {} >/dev/null &\n",
@@ -224,6 +227,8 @@ impl ExecutionPlan {
         trap_threads_line.push_str("' SIGINT SIGTERM\n");
         content.push_str(&trap_threads_line);
         content.push_str("wait $THREAD_0\n");
+        content.push_str("sleep 300\n");
+        content.push_str("pkill -P $$\n");
 
         let path = Path::new("run.sh");
         ret.push((path.to_path_buf(), content));
@@ -286,6 +291,34 @@ impl DistributionPlan {
         });
 
         DistributionPlan { execution_plans }
+    }
+
+    fn new_run_scripts(hosts: &Vec<String>) -> Result<Vec<(PathBuf, String)>> {
+        let mut ret = Vec::new();
+        let mut content: String = "#!/bin/bash\n".to_string();
+        for host in hosts {
+            content.push_str(&format!("ssh {} \"bash run.sh\" &\n", host));
+        }
+
+        ret.push((Path::new("run-remotes.sh").to_path_buf(), content));
+
+        let mut content: String = "#!/bin/bash\n".to_string();
+
+        for host in hosts {
+            content.push_str(&format!(
+                "scp {}:result.json result-{}.json &\n",
+                host, host
+            ));
+        }
+
+        ret.push((Path::new("get-results.sh").to_path_buf(), content));
+
+        let mut content: String = "#!/bin/bash\nset -ex\n".to_string();
+        content.push_str("bash distribute.sh\n");
+        content.push_str("bash run-remotes.sh\n");
+        content.push_str("bash get-results.sh\n");
+
+        Ok(ret)
     }
 
     fn dry_run(&self, parent_dir: &Path) -> Result<Vec<(PathBuf, String)>> {
