@@ -31,6 +31,10 @@ pub(crate) struct Cli {
     #[arg(long)]
     pub(crate) disable_metrics: bool,
 
+    /// Export metrics to file
+    #[arg(short, long)]
+    pub(crate) export_path: Option<PathBuf>,
+
     #[command(subcommand)]
     pub(crate) command: Option<Commands>,
 }

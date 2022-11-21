@@ -18,8 +18,6 @@ use node::Node;
 
 use anyhow::Result;
 use node_config::NodeConfig;
-use serde::{Serialize, Serializer};
-use tracing::field::display;
 
 mod cli;
 mod client;
@@ -210,9 +208,23 @@ impl ExecutionPlan {
         }
 
         let mut content: String = "#!/bin/bash\n".to_string();
-        for pair in ret.iter() {
-            content.push_str(&format!("./jasmine --config {} &\n", pair.0.display()));
+        let mut trap_threads_line = "trap 'kill".to_string();
+        for (i, pair) in ret.iter().enumerate() {
+            if i == 0 {
+                content.push_str(&format!("./jasmine --config {} --export-path result.json &\n", pair.0.display()));
+            } else {
+                content.push_str(&format!(
+                    "./jasmine --config {} >/dev/null &\n",
+                    pair.0.display()
+                ));
+            }
+            content.push_str(&format!("THREAD_{}=$!\n", i));
+            trap_threads_line.push_str(&format!(" $THREAD_{}", i));
         }
+        trap_threads_line.push_str("' SIGINT SIGTERM\n");
+        content.push_str(&trap_threads_line);
+        content.push_str("wait $THREAD_0\n");
+
         let path = Path::new("run.sh");
         ret.push((path.to_path_buf(), content));
 

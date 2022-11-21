@@ -132,7 +132,7 @@ impl Default for Metrics {
             sampling_interval: 2000,
             export_path: None,
             stop_after_stable: true,
-            stable_threshold: 0.1,
+            stable_threshold: 0.5,
             sampling_window: 20,
             report_every_n_samples: Some(1),
         }
@@ -212,6 +212,10 @@ impl NodeConfig {
                 cfg.consensus = ConsensusType::HotStuff;
             }
 
+            if cfg.metrics.export_path.is_none() {
+                cfg.metrics.export_path = cli.export_path.clone();
+            }
+
             cfg
         })
     }
@@ -288,5 +292,9 @@ impl NodeConfig {
         let content = self.dry_run()?;
         file.write_all(content.as_bytes())?;
         Ok(())
+    }
+
+    pub fn disable_metrics(&mut self) {
+        self.metrics.enabled = false;
     }
 }

@@ -1,10 +1,16 @@
 use std::{
     collections::VecDeque,
+    fs,
+    io::Write,
+    path::Path,
     process::exit,
     time::{Duration, Instant},
 };
 
+use serde::Serialize;
 use tokio::sync::mpsc::Receiver;
+
+use anyhow::Result;
 
 use crate::{
     data::{Block, BlockType},
@@ -134,17 +140,35 @@ impl Metrics {
                 < self.config.get_metrics().stable_threshold
     }
 
-    fn try_exit(&mut self) {
+    fn try_exit(&mut self) -> Result<()> {
         if self.high_enough() || self.stable() {
             // TODO: export data to file first.
+            if let Some(path) = self.config.get_metrics().export_path.clone() {
+                self.export(&path)?;
+            }
             tracing::info!("Node exits");
             exit(0);
         }
+        Ok(())
+    }
+
+    fn export(&mut self, path: &Path) -> Result<()> {
+        let mut file = fs::File::create(path)?;
+
+        let metrics_result = MetricsResult {
+            input: self.config.clone(),
+            output: self.sample_window.pop_front().unwrap(),
+        };
+
+        file.write_all(serde_json::to_string_pretty(&metrics_result)?.as_bytes())?;
+
+        Ok(())
     }
 }
 
 // TODO: Every batch size?
 #[allow(dead_code)]
+#[derive(Serialize)]
 struct MetricsSample {
     // ms
     average_delay: f64,
@@ -195,6 +219,12 @@ impl std::fmt::Display for MetricsSample {
             self.key_block_delay
         )
     }
+}
+
+#[derive(Serialize)]
+struct MetricsResult {
+    input: NodeConfig,
+    output: MetricsSample,
 }
 
 fn mean(data: &[f64]) -> Option<f64> {
