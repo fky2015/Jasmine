@@ -4,7 +4,7 @@ use futures::{SinkExt, StreamExt};
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-use crate::consensus::NetworkPackage;
+use crate::{consensus::NetworkPackage, crypto::PublicKey};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::mpsc::{self, channel, Receiver, Sender},
@@ -14,7 +14,7 @@ use tokio::{
 // }
 
 pub struct MemoryNetwork {
-    sender: HashMap<u64, mpsc::Sender<NetworkPackage>>,
+    sender: HashMap<PublicKey, mpsc::Sender<NetworkPackage>>,
     receiver: mpsc::Receiver<NetworkPackage>,
     network_sender: mpsc::Sender<NetworkPackage>,
 }
@@ -29,7 +29,7 @@ impl MemoryNetwork {
         }
     }
 
-    pub(crate) fn register(&mut self, id: u64) -> MemoryNetworkAdaptor {
+    pub(crate) fn register(&mut self, id: PublicKey) -> MemoryNetworkAdaptor {
         let (tx, rx) = mpsc::channel(100);
         self.sender.insert(id, tx);
         MemoryNetworkAdaptor {
@@ -46,7 +46,7 @@ impl MemoryNetwork {
                     sender.send(msg).await;
                 }
             } else {
-                let to = msg.to.unwrap();
+                let to = msg.to.as_ref().unwrap();
                 if let Some(h) = self.sender.get(&to) {
                     h.send(msg).await;
                 }
@@ -74,12 +74,12 @@ pub type NetworkAdaptor = MemoryNetworkAdaptor;
 
 /// Like `TcpNetwork`, but always drop packages.
 pub struct FailureNetwork {
-    addrs: HashMap<u64, SocketAddr>,
+    addrs: HashMap<PublicKey, SocketAddr>,
     sender_rx: Receiver<NetworkPackage>,
 }
 
 impl FailureNetwork {
-    pub fn spawn(addr: SocketAddr, config: HashMap<u64, SocketAddr>) -> NetworkAdaptor {
+    pub fn spawn(addr: SocketAddr, config: HashMap<PublicKey, SocketAddr>) -> NetworkAdaptor {
         let (tx, rx) = mpsc::channel(1);
         let (sender_tx, sender_rx) = mpsc::channel(1);
         tokio::spawn(async move {
@@ -115,13 +115,13 @@ impl FailureNetwork {
 
 pub struct TcpNetwork {
     // this belongs to the config object.
-    addrs: HashMap<u64, SocketAddr>,
+    addrs: HashMap<PublicKey, SocketAddr>,
     sender: SimpleSender,
     sender_rx: Receiver<NetworkPackage>,
 }
 
 impl TcpNetwork {
-    pub fn spawn(addr: SocketAddr, config: HashMap<u64, SocketAddr>) -> NetworkAdaptor {
+    pub fn spawn(addr: SocketAddr, config: HashMap<PublicKey, SocketAddr>) -> NetworkAdaptor {
         let (tx, rx) = mpsc::channel(1);
         let (sender_tx, sender_rx) = mpsc::channel(1);
         tokio::spawn(async move {
@@ -144,7 +144,7 @@ impl TcpNetwork {
     async fn run(&mut self) {
         while let Some(pkg) = self.sender_rx.recv().await {
             tracing::trace!("sending {:?}", pkg);
-            let to = pkg.to;
+            let to = pkg.to.clone();
             let pkg = bincode::serialize(&pkg).unwrap();
             if to.is_none() {
                 for addr in self.addrs.values() {

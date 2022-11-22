@@ -49,13 +49,13 @@ pub(crate) enum Commands {
     MemoryTest {
         /// Number of nodes.
         #[arg(short, long, default_value_t = 4)]
-        number: u64,
+        number: usize,
     },
 
     FailTest {
         /// Number of failures.
         #[arg(short, long, default_value_t = 1)]
-        number: u64,
+        number: usize,
     },
 
     /// Generate all configs for a single test.
@@ -65,7 +65,7 @@ pub(crate) enum Commands {
     ConfigGen {
         /// Number of nodes.
         #[arg(short, long, default_value_t = 4)]
-        number: u64,
+        number: usize,
 
         /// hosts to distribute replicas.
         hosts: Vec<String>,
@@ -83,6 +83,6 @@ pub(crate) enum Commands {
         /// This value must follow the rule of BFT,
         /// that 3f+1 <= n.
         #[arg(short, long, default_value_t = 0)]
-        failure_nodes: u64,
+        failure_nodes: usize,
     },
 }

@@ -10,7 +10,11 @@ use std::{
 use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 
-use crate::{cli::Cli, consensus::VoterSet};
+use crate::{
+    cli::Cli,
+    consensus::VoterSet,
+    crypto::{generate_keypair, Digest, Keypair, PublicKey, Signature},
+};
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -141,22 +145,12 @@ impl Default for Metrics {
     }
 }
 
-// https://stackoverflow.com/questions/42723065/how-to-sort-hashmap-keys-when-serializing-with-serde
-fn ordered_map<S, T>(value: &HashMap<u64, T>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-    T: Serialize,
-{
-    let ordered: BTreeMap<_, _> = value.iter().collect();
-    ordered.serialize(serializer)
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct NodeConfig {
-    id: u64,
+    id: PublicKey,
+    private_key: Keypair,
     // id, addr
-    #[serde(serialize_with = "ordered_map")]
-    peer_addrs: HashMap<u64, SocketAddr>,
+    peer_addrs: BTreeMap<PublicKey, SocketAddr>,
 
     #[serde(default)]
     node_settings: NodeSettings,
@@ -174,14 +168,16 @@ pub(crate) struct NodeConfig {
 
 impl Default for NodeConfig {
     fn default() -> Self {
-        let mut peer_addrs = HashMap::new();
+        let mut peer_addrs = BTreeMap::new();
+        let (id, private_key) = generate_keypair();
         peer_addrs.insert(
-            0,
+            id,
             "localhost:8123".to_socket_addrs().unwrap().next().unwrap(),
         );
 
         Self {
-            id: 0,
+            id,
+            private_key,
             peer_addrs,
             node_settings: NodeSettings::default(),
             consensus: ConsensusType::default(),
@@ -230,13 +226,21 @@ impl NodeConfig {
         })
     }
 
-    pub fn clone_with_id(&self, id: u64) -> Self {
+    /// Deprecated!
+    pub fn clone_with_id(&self, id: PublicKey) -> Self {
         let mut config = self.clone();
         config.id = id;
         config
     }
 
-    pub fn get_id(&self) -> u64 {
+    pub fn clone_with_keypair(&self, id: PublicKey, private_key: Keypair) -> Self {
+        let mut config = self.clone();
+        config.id = id;
+        config.private_key = private_key;
+        config
+    }
+
+    pub fn get_id(&self) -> PublicKey {
         self.id
     }
 
@@ -246,8 +250,12 @@ impl NodeConfig {
             .ok_or_else(|| ConfigError::LocalAddrError.into())
     }
 
-    pub fn get_peer_addrs(&self) -> &HashMap<u64, SocketAddr> {
-        &self.peer_addrs
+    pub fn get_peer_addrs(&self) -> HashMap<PublicKey, SocketAddr> {
+        let mut ret = HashMap::new();
+        for (k, v) in &self.peer_addrs {
+            ret.insert(*k, v.clone());
+        }
+        ret
     }
 
     pub fn get_consensus_type(&self) -> &ConsensusType {
@@ -267,14 +275,12 @@ impl NodeConfig {
     }
 
     pub fn get_voter_set(&self) -> VoterSet {
-        let mut v: Vec<u64> = self.peer_addrs.keys().cloned().collect();
-        // sort
-        v.sort();
+        let mut v: Vec<_> = self.peer_addrs.keys().cloned().collect();
         VoterSet::new(v)
     }
 
     pub fn override_voter_set(&mut self, voter_set: &VoterSet) {
-        let mut peer_addrs = HashMap::new();
+        let mut peer_addrs = BTreeMap::new();
         voter_set.iter().for_each(|id| {
             peer_addrs.insert(
                 *id,
@@ -289,7 +295,7 @@ impl NodeConfig {
         &self.client
     }
 
-    pub fn set_peer_addrs(&mut self, peer_addrs: HashMap<u64, SocketAddr>) {
+    pub fn set_peer_addrs(&mut self, peer_addrs: BTreeMap<PublicKey, SocketAddr>) {
         self.peer_addrs = peer_addrs;
     }
 
@@ -310,5 +316,13 @@ impl NodeConfig {
 
     pub fn set_pretend_failure(&mut self) {
         self.node_settings.pretend_failure = true;
+    }
+
+    pub fn sign(&self, msg: &Digest) -> Signature {
+        self.private_key.sign(msg)
+    }
+
+    pub fn get_private_key(&self) -> &Keypair {
+        &self.private_key
     }
 }

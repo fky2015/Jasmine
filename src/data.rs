@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use crate::crypto::{hash, Digest};
+use crate::crypto::CryptoError;
+use crate::crypto::{hash, Digest, Keypair, PublicKey, Signature};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, trace};
 
@@ -75,7 +77,7 @@ pub(crate) trait CommandGetter: Send + Sync {
     fn get_commands_with_lowerbound(&mut self, minimal: usize) -> Option<Vec<Transaction>>;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct QC {
     pub(crate) node: Digest,
     pub view: u64,
@@ -100,15 +102,16 @@ impl From<Vec<u8>> for Transaction {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct Block {
     pub hash: Digest,
     pub height: usize,
     pub(crate) prev_hash: Digest,
     pub justify: QC,
-    // #[serde(with = "BigArray")]
     pub payloads: Vec<Transaction>,
     pub timestamp: u64,
+    pub author: PublicKey,
+    pub signature: Signature,
 }
 
 impl std::fmt::Debug for Block {
@@ -118,23 +121,15 @@ impl std::fmt::Debug for Block {
             .field("prev_hash", &self.prev_hash)
             .field("justify", &self.justify)
             .field("payloads", &self.payloads.len())
+            .field("timestamp", &self.timestamp)
+            .field("author", &self.author)
             .finish()
     }
 }
 
 impl Block {
     pub fn genesis() -> Self {
-        Self {
-            hash: Digest::genesis_digest(),
-            height: 0,
-            prev_hash: Digest::genesis_digest(),
-            justify: QC {
-                node: Digest::default(),
-                view: 0,
-            },
-            payloads: Vec::new(),
-            timestamp: 0,
-        }
+        Self::default()
     }
 
     pub fn hash(&self) -> Digest {
@@ -146,6 +141,8 @@ impl Block {
         prev_height: usize,
         justify: QC,
         payloads: Vec<Transaction>,
+        author: PublicKey,
+        private_key: &Keypair,
     ) -> Self {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -158,8 +155,13 @@ impl Block {
             hasher.update(x.digest.as_bytes());
         }
         let hash = hasher.finalize();
+        let hash = Digest::from(hash);
+
+        let signature = private_key.sign(&hash);
 
         Self {
+            signature,
+            author,
             hash: hash.into(),
             height: prev_height + 1,
             prev_hash,
@@ -167,6 +169,11 @@ impl Block {
             payloads,
             timestamp,
         }
+    }
+
+    pub fn verify(&self) -> Result<()> {
+        self.author.verify(&self.hash, &self.signature)?;
+        Ok(())
     }
 }
 
@@ -272,9 +279,13 @@ impl BlockTree {
             self.latest_key_block
         };
         let prev = &self.get(parent).unwrap().0;
-        let block = self
-            .block_generator
-            .new_block(prev.hash(), prev.height, justify);
+        let block = self.block_generator.new_block(
+            prev.hash(),
+            prev.height,
+            justify,
+            self.config.get_id(),
+            self.config.get_private_key(),
+        );
 
         // update parent_key_block
         self.parent_key_block
@@ -294,6 +305,8 @@ impl BlockTree {
             prev.height,
             justify,
             lowerbound,
+            self.config.get_id(),
+            self.config.get_private_key(),
         );
 
         block.map(|block| {
@@ -579,8 +592,15 @@ impl BlockGenerator {
         }
     }
 
-    fn new_block(&mut self, prev_hash: Digest, prev_height: usize, justify: QC) -> Block {
-        self.new_block_with_lowerbound(prev_hash, prev_height, justify, 0)
+    fn new_block(
+        &mut self,
+        prev_hash: Digest,
+        prev_height: usize,
+        justify: QC,
+        author: PublicKey,
+        priv_key: &Keypair,
+    ) -> Block {
+        self.new_block_with_lowerbound(prev_hash, prev_height, justify, 0, author, priv_key)
             .unwrap()
     }
 
@@ -590,9 +610,12 @@ impl BlockGenerator {
         prev_height: usize,
         justify: QC,
         lowerbound: usize,
+        author: PublicKey,
+        priv_key: &Keypair,
     ) -> Option<Block> {
         let payloads = self.mempool.get_commands_with_lowerbound(lowerbound);
-        payloads.map(|payloads| Block::new(prev_hash, prev_height, justify, payloads))
+        payloads
+            .map(|payloads| Block::new(prev_hash, prev_height, justify, payloads, author, priv_key))
     }
 }
 

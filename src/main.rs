@@ -13,6 +13,7 @@ use std::{
 use clap::Parser;
 use cli::{Cli, Commands};
 use consensus::VoterSet;
+use crypto::generate_keypairs;
 use network::{FailureNetwork, MemoryNetwork, TcpNetwork};
 use node::Node;
 
@@ -22,15 +23,13 @@ use node_config::NodeConfig;
 mod cli;
 mod client;
 mod consensus;
+mod crypto;
 mod data;
 mod mempool;
 mod metrics;
 mod network;
 mod node;
 mod node_config;
-mod crypto;
-
-pub type Hash = u64;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -41,20 +40,26 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Some(Commands::MemoryTest { number }) => {
-            let voter_set: Vec<_> = (0..number).collect();
+            let voter_set: Vec<_> = generate_keypairs(number);
             let genesis = data::Block::genesis();
 
             let mut network = MemoryNetwork::new();
 
             // Mock peers
-            config.override_voter_set(&VoterSet::new(voter_set.to_owned()));
+            config.override_voter_set(&VoterSet::new(
+                voter_set.iter().map(|(pk, _)| pk.clone()).collect(),
+            ));
 
             // Prepare the environment.
             let nodes: Vec<_> = voter_set
-                .iter()
-                .map(|id| {
-                    let adaptor = network.register(*id);
-                    Node::new(config.clone_with_id(*id), adaptor, genesis.to_owned())
+                .into_iter()
+                .map(|(id, secret)| {
+                    let adaptor = network.register(id);
+                    Node::new(
+                        config.clone_with_keypair(id, secret),
+                        adaptor,
+                        genesis.to_owned(),
+                    )
                 })
                 .collect();
 
@@ -74,21 +79,31 @@ async fn main() -> Result<()> {
         }
         Some(Commands::FailTest { number }) => {
             let total = number * 3 + 1;
-            let mut voter_set: Vec<_> = (0..total).collect();
+            let mut voter_set: Vec<_> = generate_keypairs(total);
             let genesis = data::Block::genesis();
             let mut network = MemoryNetwork::new();
 
             // Mock peers
-            config.override_voter_set(&VoterSet::new(voter_set.to_owned()));
-
-            voter_set.retain(|id| !(1..=number).contains(id));
+            config.override_voter_set(&VoterSet::new(
+                voter_set.iter().map(|(pk, _)| *pk).collect(),
+            ));
 
             // Prepare the environment.
             let nodes: Vec<_> = voter_set
                 .iter()
-                .map(|id| {
-                    let adaptor = network.register(*id);
-                    Node::new(config.clone_with_id(*id), adaptor, genesis.to_owned())
+                .enumerate()
+                .filter_map(|(idx, (p, sec))| {
+                    if idx % 3 == 1 {
+                        // Fail the node.
+                        None
+                    } else {
+                        let adaptor = network.register(*p);
+                        Some(Node::new(
+                            config.clone_with_keypair(*p, sec.clone()),
+                            adaptor,
+                            genesis.to_owned(),
+                        ))
+                    }
                 })
                 .collect();
 
@@ -141,15 +156,9 @@ async fn main() -> Result<()> {
         }
         None => {
             let adapter = if config.get_node_settings().pretend_failure {
-                FailureNetwork::spawn(
-                    config.get_local_addr()?.to_owned(),
-                    config.get_peer_addrs().to_owned(),
-                )
+                FailureNetwork::spawn(config.get_local_addr()?.to_owned(), config.get_peer_addrs())
             } else {
-                TcpNetwork::spawn(
-                    config.get_local_addr()?.to_owned(),
-                    config.get_peer_addrs().to_owned(),
-                )
+                TcpNetwork::spawn(config.get_local_addr()?.to_owned(), config.get_peer_addrs())
             };
 
             tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
@@ -264,47 +273,58 @@ struct DistributionPlan {
 ///
 /// `scp -r $BASE_DIR/$HOST-n $HOST_N`
 impl DistributionPlan {
-    fn new(number: u64, hosts: Vec<String>, base_config: NodeConfig, failure_nodes: u64) -> Self {
-        let voter_set: Vec<_> = (0..number).collect();
+    fn new(
+        number: usize,
+        hosts: Vec<String>,
+        base_config: NodeConfig,
+        failure_nodes: usize,
+    ) -> Self {
+        let voter_set: Vec<_> = generate_keypairs(number);
 
-        let mut peer_addrs = HashMap::new();
+        let mut peer_addrs = BTreeMap::new();
 
-        voter_set.iter().for_each(|&id| {
-            peer_addrs.insert(
-                id,
-                format!(
-                    "{}:{}",
-                    hosts.get(id as usize % hosts.len()).unwrap().to_owned(),
-                    8123 + id
-                )
-                .to_socket_addrs()
-                .unwrap()
-                .next()
-                .unwrap(),
-            );
-        });
+        voter_set
+            .iter()
+            .enumerate()
+            .for_each(|(idx, (pub_key, _priv_key))| {
+                peer_addrs.insert(
+                    pub_key.clone(),
+                    format!(
+                        "{}:{}",
+                        hosts.get(idx as usize % hosts.len()).unwrap().to_owned(),
+                        8123 + idx
+                    )
+                    .to_socket_addrs()
+                    .unwrap()
+                    .next()
+                    .unwrap(),
+                );
+            });
 
         let mut execution_plans = Vec::new();
         for host in &hosts {
             execution_plans.push(ExecutionPlan::new(host.to_owned()));
         }
 
-        voter_set.into_iter().for_each(|id| {
-            let mut config = base_config.clone_with_id(id);
-            config.set_peer_addrs(peer_addrs.clone());
+        voter_set
+            .into_iter()
+            .enumerate()
+            .for_each(|(idx, (pub_key, priv_key))| {
+                let mut config = base_config.clone_with_keypair(pub_key, priv_key);
+                config.set_peer_addrs(peer_addrs.clone());
 
-            // The last `failure_nodes` nodes will be marked as failure nodes.
-            if id >= number - failure_nodes {
-                config.set_pretend_failure();
-            }
+                // The last `failure_nodes` nodes will be marked as failure nodes.
+                if idx >= number - failure_nodes {
+                    config.set_pretend_failure();
+                }
 
-            let index = id as usize % hosts.len();
+                let index = idx as usize % hosts.len();
 
-            execution_plans
-                .get_mut(index)
-                .expect("hosts length is the same as execution_plans")
-                .add(config);
-        });
+                execution_plans
+                    .get_mut(index)
+                    .expect("hosts length is the same as execution_plans")
+                    .add(config);
+            });
 
         DistributionPlan { execution_plans }
     }

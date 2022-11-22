@@ -1,8 +1,7 @@
 use crate::{
-    crypto::Digest,
+    crypto::{Digest, PublicKey, Signature},
     data::{BlockType, QC},
     node_config::NodeConfig,
-    Hash,
 };
 use std::{
     collections::HashMap,
@@ -30,28 +29,28 @@ use crate::{
 pub(crate) enum Message {
     Propose(Block),
     ProposeInBetween(Block),
-    Vote(Digest),
+    Vote(Digest, PublicKey, Signature),
     NewView(QC),
 }
 
 impl Message {}
 
 pub(crate) struct VoterState {
-    pub id: u64,
+    pub id: PublicKey,
     pub view: u64,
     pub threshold: usize,
     pub generic_qc: QC,
     pub locked_qc: QC,
     // <view, (what, whos)>
-    pub votes: HashMap<u64, HashMap<Digest, Vec<u64>>>,
+    pub votes: HashMap<u64, HashMap<Digest, Vec<PublicKey>>>,
     pub notify: Arc<Notify>,
     pub best_view: Arc<AtomicU64>,
     // <view, (whos)>
-    pub new_views: HashMap<u64, Vec<u64>>,
+    pub new_views: HashMap<u64, Vec<PublicKey>>,
 }
 
 impl VoterState {
-    pub fn new(id: u64, view: u64, generic_qc: QC, threshold: usize) -> Self {
+    pub fn new(id: PublicKey, view: u64, generic_qc: QC, threshold: usize) -> Self {
         Self {
             id,
             view,
@@ -75,8 +74,9 @@ impl VoterState {
         self.notify.notify_waiters();
     }
 
-    pub(crate) fn add_new_view(&mut self, view: u64, who: u64) {
+    pub(crate) fn add_new_view(&mut self, view: u64, who: PublicKey) {
         let view_map = self.new_views.entry(view).or_default();
+        // TODO, use a hashmap to collect messages.
         view_map.push(who);
 
         if view_map.len() == self.threshold {
@@ -96,7 +96,7 @@ impl VoterState {
         &mut self,
         msg_view: u64,
         block_hash: Digest,
-        voter_id: u64,
+        voter_id: PublicKey,
     ) -> Option<QC> {
         let view_map = self.votes.entry(msg_view).or_default();
         let voters = view_map.entry(block_hash).or_default();
@@ -134,9 +134,9 @@ impl VoterState {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct NetworkPackage {
-    pub(crate) id: u64,
+    pub(crate) from: PublicKey,
     /// None means the message is a broadcast message.
-    pub(crate) to: Option<u64>,
+    pub(crate) to: Option<PublicKey>,
     /// None means the message is a global message.
     pub(crate) view: Option<u64>,
     pub(crate) message: Message,
@@ -170,7 +170,7 @@ impl Environment {
 }
 
 pub(crate) struct Voter {
-    id: u64,
+    id: PublicKey,
     config: NodeConfig,
     /// Only used when initialize ConsensusVoter.
     view: u64,
@@ -179,11 +179,11 @@ pub(crate) struct Voter {
 
 #[derive(Debug, Clone)]
 pub(crate) struct VoterSet {
-    voters: Vec<u64>,
+    voters: Vec<PublicKey>,
 }
 
 impl VoterSet {
-    pub fn new(voters: Vec<u64>) -> Self {
+    pub fn new(voters: Vec<PublicKey>) -> Self {
         Self { voters }
     }
 
@@ -191,13 +191,13 @@ impl VoterSet {
         self.voters.len() - (self.voters.len() as f64 / 3.0).floor() as usize
     }
 
-    pub fn iter(&self) -> Iter<u64> {
+    pub fn iter(&self) -> Iter<PublicKey> {
         self.voters.iter()
     }
 }
 
 impl Iterator for VoterSet {
-    type Item = u64;
+    type Item = PublicKey;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.voters.pop()
@@ -205,7 +205,7 @@ impl Iterator for VoterSet {
 }
 
 impl Voter {
-    pub(crate) fn new(id: u64, config: NodeConfig, env: Arc<Mutex<Environment>>) -> Self {
+    pub(crate) fn new(id: PublicKey, config: NodeConfig, env: Arc<Mutex<Environment>>) -> Self {
         let view = 1;
         Self {
             id,
@@ -220,7 +220,7 @@ impl Voter {
         let generic_qc = self.env.lock().block_tree.genesis().0.justify.clone();
         let voters = self.env.lock().voter_set.to_owned();
         let state = Arc::new(Mutex::new(VoterState::new(
-            self.id,
+            self.id.clone(),
             self.view,
             generic_qc,
             voters.threshold(),
@@ -274,7 +274,7 @@ impl ConsensusVoter {
         }
     }
 
-    fn get_leader(view: u64, voters: &VoterSet) -> u64 {
+    fn get_leader(view: u64, voters: &VoterSet) -> PublicKey {
         voters
             .voters
             .get(((view / 100) % voters.voters.len() as u64) as usize)
@@ -286,7 +286,7 @@ impl ConsensusVoter {
         env: Arc<Mutex<Environment>>,
         view: u64,
         generic_qc: QC,
-        id: u64,
+        id: PublicKey,
         lower_bound: usize,
     ) -> Option<NetworkPackage> {
         env.lock()
@@ -295,9 +295,14 @@ impl ConsensusVoter {
             .map(|blk| Self::package_message(id, Message::ProposeInBetween(blk), view, None))
     }
 
-    fn package_message(id: u64, message: Message, view: u64, to: Option<u64>) -> NetworkPackage {
+    fn package_message(
+        id: PublicKey,
+        message: Message,
+        view: u64,
+        to: Option<PublicKey>,
+    ) -> NetworkPackage {
         NetworkPackage {
-            id,
+            from: id,
             to,
             view: Some(view),
             message,
@@ -309,7 +314,7 @@ impl ConsensusVoter {
         env: Arc<Mutex<Environment>>,
         view: u64,
         generic_qc: QC,
-        id: u64,
+        id: PublicKey,
     ) -> NetworkPackage {
         let block = env.lock().block_tree.new_key_block(generic_qc);
         Self::package_message(id, Message::Propose(block), view, None)
@@ -337,7 +342,7 @@ impl ConsensusVoter {
     }
 
     async fn run_as_voter(self) {
-        let id = self.state.lock().id;
+        let id = self.state.lock().id.clone();
         let finalized_block_tx = self.env.lock().finalized_block_tx.to_owned();
         let voters = {
             let env = self.env.lock();
@@ -357,12 +362,7 @@ impl ConsensusVoter {
         let mut voted_view = 0;
 
         while let Some(pkg) = rx.recv().await {
-            {
-                if id == 2 {
-                    debug!("{}: get pkg: {:?}", id, pkg)
-                }
-            }
-            let from = pkg.id;
+            let from = pkg.from;
             let view = pkg.view.unwrap();
             let current_view = self.state.lock().view;
             if view < current_view - 1 {
@@ -378,19 +378,14 @@ impl ConsensusVoter {
             let message = pkg.message;
             match message {
                 Message::Propose(block) => {
-                    // DELETE: debug
                     if view < self.state.lock().view {
-                        tracing::debug!(
-                            "{}: voter receive pkg from {} with view {} which is too old",
-                            id,
-                            from,
-                            view
-                        );
                         continue;
                     }
                     let hash = block.hash();
 
                     // WARN: As a POC, we suppose all the blocks are valid by application logic.
+                    block.verify().unwrap();
+                    
                     if from != id {
                         self.env
                             .lock()
@@ -413,8 +408,8 @@ impl ConsensusVoter {
 
                             // Suppose the block is valid, vote for it
                             Some(Self::package_message(
-                                id,
-                                Message::Vote(hash),
+                                id.clone(),
+                                Message::Vote(hash, id.clone(), self.config.sign(&hash)),
                                 current_view,
                                 Some(Self::get_leader(current_view + 1, &voters)),
                             ))
@@ -515,11 +510,13 @@ impl ConsensusVoter {
                             .add_block(block, BlockType::InBetween);
                     }
                 }
-                Message::Vote(block_hash) => {
+                Message::Vote(block_hash, author, signature) => {
                     // onReceiveVote
                     let qc = self.state.lock().add_vote(view, block_hash, from);
 
-                    trace!("{}: voter receive qc from {} for block {:?}", id, from, qc);
+                    // verify signature
+                    author.verify(&block_hash, &signature).unwrap();
+
                     if let Some(qc) = qc {
                         self.update_qc_high(qc);
                         self.state.lock().set_best_view(view);
@@ -534,7 +531,7 @@ impl ConsensusVoter {
     }
 
     async fn run_as_leader(self) {
-        let id = self.state.lock().id;
+        let id = self.state.lock().id.clone();
 
         // println!("{}: leader start", id);
 
@@ -561,7 +558,7 @@ impl ConsensusVoter {
                             self.env.to_owned(),
                             view,
                             generic_qc.to_owned(),
-                            id,
+                            id.clone(),
                             *minimal_batch_size,
                         );
 
@@ -579,7 +576,7 @@ impl ConsensusVoter {
 
                 // onPropose
                 let generic_qc = self.state.lock().generic_qc.clone();
-                let pkg = Self::new_key_block(self.env.to_owned(), view, generic_qc, id);
+                let pkg = Self::new_key_block(self.env.to_owned(), view, generic_qc, id.clone());
                 tracing::trace!("{}: leader propose block in view: {}", id, view);
                 tx.send(pkg).await.unwrap();
             }
@@ -620,21 +617,26 @@ impl ConsensusVoter {
 
             // otherwise, try send a new-view message to nextleader
             let (next_leader, next_leader_view) = self.get_next_leader();
-            let pkg = self.new_new_view(next_leader_view, next_leader);
             trace!("{} send new_view to {}", id, next_leader);
+            let pkg = self.new_new_view(next_leader_view, next_leader);
             tx.send(pkg).await.unwrap();
 
             self.state.lock().view = next_leader_view;
         }
     }
 
-    fn new_new_view(&self, view: u64, next_leader: u64) -> NetworkPackage {
+    fn new_new_view(&self, view: u64, next_leader: PublicKey) -> NetworkPackage {
         let new_view = Message::NewView(self.state.lock().generic_qc.clone());
-        Self::package_message(self.state.lock().id, new_view, view, Some(next_leader))
+        Self::package_message(
+            self.state.lock().id.clone(),
+            new_view,
+            view,
+            Some(next_leader),
+        )
     }
 
     // -> (leaderId, view)
-    fn get_next_leader(&self) -> (u64, u64) {
+    fn get_next_leader(&self) -> (PublicKey, u64) {
         let mut view = self.state.lock().view;
         let current_leader = Self::get_leader(view, &self.env.lock().voter_set);
         loop {
