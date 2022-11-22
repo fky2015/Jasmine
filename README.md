@@ -21,7 +21,7 @@ Generate config files for multi replicas over multi hosts.
 Let's say we want to distribute 4 replicas over 2 hosts (IP_OF_SERVER_1, IP_OF_SERVER_2).
 
 ```Bash
-# cargo r -- config-gen --number <TOTAL_NUMBER> [HOSTS..]
+# cargo r -- config-gen --help
 cargo r -- config-gen --number 4 IP_OF_SERVER_1 IP_OF_SERVER_2 --export-dir configs -w
 ```
 
@@ -34,11 +34,10 @@ Then, distribute these files to corresponding servers.
 ```
 cd ./configs
 
-bash distribute.sh
+bash run-all.sh
 ```
 
-TODO: Then you may run those via `run.sh`
-
+This script will distribute configs, run replicas, and collect experiment results into your local directory.
 
 ## Test
 

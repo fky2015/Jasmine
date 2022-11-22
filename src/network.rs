@@ -72,6 +72,47 @@ impl MemoryNetworkAdaptor {
 
 pub type NetworkAdaptor = MemoryNetworkAdaptor;
 
+/// Like `TcpNetwork`, but always drop packages.
+pub struct FailureNetwork {
+    addrs: HashMap<u64, SocketAddr>,
+    sender_rx: Receiver<NetworkPackage>,
+}
+
+impl FailureNetwork {
+    pub fn spawn(addr: SocketAddr, config: HashMap<u64, SocketAddr>) -> NetworkAdaptor {
+        let (tx, rx) = mpsc::channel(1);
+        let (sender_tx, sender_rx) = mpsc::channel(1);
+        tokio::spawn(async move {
+            Self {
+                addrs: config.clone(),
+                sender_rx,
+            }
+            .run()
+            .await
+        });
+        FailureReceiver::spawn(addr, tx);
+
+        NetworkAdaptor {
+            network_sender: sender_tx,
+            receiver: Some(rx),
+        }
+    }
+
+    async fn run(&mut self) {
+        while let Some(_pkg) = self.sender_rx.recv().await {
+            // let to = pkg.to;
+            // let pkg = bincode::serialize(&pkg).unwrap();
+            // if to.is_none() {
+            //     for addr in self.addrs.values() {
+            //         self.sender.send(*addr, pkg.clone().into()).await;
+            //     }
+            // } else if let some(addr) = self.addrs.get(&to.unwrap()) {
+            //     self.sender.send(*addr, pkg.into()).await;
+            // }
+        }
+    }
+}
+
 pub struct TcpNetwork {
     // this belongs to the config object.
     addrs: HashMap<u64, SocketAddr>,
@@ -215,6 +256,46 @@ impl Connection {
     }
 }
 
+pub struct FailureReceiver {
+    /// Local address to listen on.
+    address: SocketAddr,
+    /// A tx channel to send received messages to.
+    sender: Sender<NetworkPackage>,
+}
+
+impl FailureReceiver {
+    pub fn spawn(address: SocketAddr, sender: Sender<NetworkPackage>) {
+        tokio::spawn(async move {
+            Self { address, sender }.run().await;
+        });
+    }
+    async fn run(&self) {
+        let listener = TcpListener::bind(&self.address)
+            .await
+            .expect("Failed to bind address");
+
+        loop {
+            let (socket, peer) = match listener.accept().await {
+                Ok(value) => value,
+                Err(e) => {
+                    eprintln!("failed to accept socket; error = {:?}", e);
+                    continue;
+                }
+            };
+
+            Self::spawn_runner(socket, peer, self.sender.clone()).await;
+        }
+    }
+
+    async fn spawn_runner(socket: TcpStream, peer: SocketAddr, sender: Sender<NetworkPackage>) {
+        tokio::spawn(async move {
+            let (mut _writer, mut reader) =
+                Framed::new(socket, LengthDelimitedCodec::new()).split();
+            while let Some(result) = reader.next().await {}
+        });
+    }
+}
+
 pub struct SimpleReceiver {
     /// Local address to listen on.
     address: SocketAddr,
@@ -251,15 +332,9 @@ impl SimpleReceiver {
             let (mut _writer, mut reader) =
                 Framed::new(socket, LengthDelimitedCodec::new()).split();
             while let Some(result) = reader.next().await {
-                tracing::trace!(
-                    "received from {}, size: {}",
-                    peer,
-                    result.as_ref().unwrap().len()
-                );
                 match result {
                     Ok(bytes) => match bincode::deserialize::<NetworkPackage>(&bytes) {
                         Ok(msg) => {
-                            tracing::trace!("received {:?}", msg);
                             sender.send(msg).await.unwrap();
                         }
                         Err(e) => {
@@ -271,7 +346,6 @@ impl SimpleReceiver {
                         return;
                     }
                 }
-                tracing::trace!("reloop");
             }
         });
     }

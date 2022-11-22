@@ -13,7 +13,7 @@ use std::{
 use clap::Parser;
 use cli::{Cli, Commands};
 use consensus::VoterSet;
-use network::{MemoryNetwork, TcpNetwork};
+use network::{FailureNetwork, MemoryNetwork, TcpNetwork};
 use node::Node;
 
 use anyhow::Result;
@@ -110,6 +110,7 @@ async fn main() -> Result<()> {
             mut hosts,
             export_dir,
             write_file,
+            failure_nodes,
         }) => {
             // println!("Generating config {:?}", cfg);
             if hosts.is_empty() {
@@ -117,7 +118,7 @@ async fn main() -> Result<()> {
                 hosts.push(String::from("localhost"))
             }
 
-            let distribution_plan = DistributionPlan::new(number, hosts, config);
+            let distribution_plan = DistributionPlan::new(number, hosts, config, failure_nodes);
 
             if !write_file {
                 for (path, content) in distribution_plan.dry_run(&export_dir)? {
@@ -138,10 +139,19 @@ async fn main() -> Result<()> {
             }
         }
         None => {
-            let adapter = TcpNetwork::spawn(
-                config.get_local_addr()?.to_owned(),
-                config.get_peer_addrs().to_owned(),
-            );
+            let adapter = if config.get_node_settings().pretend_failure {
+                FailureNetwork::spawn(
+                    config.get_local_addr()?.to_owned(),
+                    config.get_peer_addrs().to_owned(),
+                )
+            } else {
+                TcpNetwork::spawn(
+                    config.get_local_addr()?.to_owned(),
+                    config.get_peer_addrs().to_owned(),
+                )
+            };
+
+            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
             let node = Node::new(config, adapter, data::Block::genesis());
 
@@ -217,7 +227,7 @@ impl ExecutionPlan {
                 ));
             } else {
                 content.push_str(&format!(
-                    "./jasmine --config {} >/dev/null &\n",
+                    "./jasmine --config {} --disable-metrics >/dev/null &\n",
                     pair.0.display()
                 ));
             }
@@ -253,7 +263,7 @@ struct DistributionPlan {
 ///
 /// `scp -r $BASE_DIR/$HOST-n $HOST_N`
 impl DistributionPlan {
-    fn new(number: u64, hosts: Vec<String>, base_config: NodeConfig) -> Self {
+    fn new(number: u64, hosts: Vec<String>, base_config: NodeConfig, failure_nodes: u64) -> Self {
         let voter_set: Vec<_> = (0..number).collect();
 
         let mut peer_addrs = HashMap::new();
@@ -281,6 +291,11 @@ impl DistributionPlan {
         voter_set.into_iter().for_each(|id| {
             let mut config = base_config.clone_with_id(id);
             config.set_peer_addrs(peer_addrs.clone());
+
+            // The last `failure_nodes` nodes will be marked as failure nodes.
+            if id >= number - failure_nodes {
+                config.set_pretend_failure();
+            }
 
             let index = id as usize % hosts.len();
 
@@ -313,10 +328,19 @@ impl DistributionPlan {
 
         ret.push((Path::new("get-results.sh").to_path_buf(), content));
 
-        let mut content: String = "#!/bin/bash\nset -ex\n".to_string();
+        let mut content: String = "#!/bin/bash\n".to_string();
         content.push_str("bash distribute.sh\n");
         content.push_str("bash run-remotes.sh\n");
         content.push_str("bash get-results.sh\n");
+
+        ret.push((Path::new("run-all.sh").to_path_buf(), content));
+
+        let mut content: String = "#!/bin/bash\n".to_string();
+        for host in hosts {
+            content.push_str(&format!("ssh {} 'rm ./*.json' &\n", host));
+        }
+
+        ret.push((Path::new("clean-all.sh").to_path_buf(), content));
 
         Ok(ret)
     }
@@ -352,6 +376,18 @@ impl DistributionPlan {
             });
 
         ret.push((Path::new("distribute.sh").to_path_buf(), content));
+
+        ret.extend_from_slice(
+            Self::new_run_scripts(
+                &self
+                    .execution_plans
+                    .iter()
+                    .map(|plan| plan.host.to_owned())
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap()
+            .as_slice(),
+        );
 
         let ret = ret
             .into_iter()

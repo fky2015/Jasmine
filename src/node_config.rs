@@ -29,6 +29,7 @@ pub(crate) struct NodeSettings {
     ///
     /// For best performance, this should be a multiple of batch_size.
     pub(crate) mempool_size: usize,
+    pub(crate) pretend_failure: bool,
 }
 
 impl Default for NodeSettings {
@@ -37,6 +38,7 @@ impl Default for NodeSettings {
             transaction_size: 256,
             batch_size: 100,
             mempool_size: 1000,
+            pretend_failure: false,
         }
     }
 }
@@ -206,7 +208,7 @@ impl NodeConfig {
             None => Ok(Default::default()),
         };
 
-        // TODO: Override config with cli
+        // TODO: Override more config with cli
         config.map(|mut cfg: NodeConfig| {
             if cli.disable_jasmine {
                 cfg.consensus = ConsensusType::HotStuff;
@@ -214,6 +216,14 @@ impl NodeConfig {
 
             if cfg.metrics.export_path.is_none() {
                 cfg.metrics.export_path = cli.export_path.clone();
+            }
+
+            if cli.disable_metrics {
+                cfg.metrics.enabled = false;
+            }
+
+            if cli.pretend_failure {
+                cfg.node_settings.pretend_failure = true;
             }
 
             cfg
@@ -296,5 +306,9 @@ impl NodeConfig {
 
     pub fn disable_metrics(&mut self) {
         self.metrics.enabled = false;
+    }
+
+    pub fn set_pretend_failure(&mut self) {
+        self.node_settings.pretend_failure = true;
     }
 }

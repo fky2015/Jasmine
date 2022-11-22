@@ -27,6 +27,10 @@ pub(crate) struct Cli {
     #[arg(long)]
     enable_delay_test: bool,
 
+    /// Pretend to be a failure nodes.
+    #[arg(long)]
+    pub(crate) pretend_failure: bool,
+
     /// Disable metrics
     #[arg(long)]
     pub(crate) disable_metrics: bool,
@@ -73,5 +77,12 @@ pub(crate) enum Commands {
         /// Write all the configs and scripts to file.
         #[arg(short, long)]
         write_file: bool,
+
+        /// Number of failure nodes
+        ///
+        /// This value must follow the rule of BFT,
+        /// that 3f+1 <= n.
+        #[arg(short, long, default_value_t = 0)]
+        failure_nodes: u64,
     },
 }
