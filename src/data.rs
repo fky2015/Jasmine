@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
+use crate::crypto::{hash, Digest};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, trace};
 
+// use blake3::{hash, Hash};
 use crate::{client::FakeClient, mempool::Mempool, node_config::NodeConfig};
-
-pub type Hash = u64;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CommandType {
@@ -77,31 +77,34 @@ pub(crate) trait CommandGetter: Send + Sync {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QC {
-    pub node: Hash,
+    pub(crate) node: Digest,
     pub view: u64,
 }
 
 impl QC {
-    pub fn new(node: Hash, view: u64) -> Self {
+    pub(crate) fn new(node: Digest, view: u64) -> Self {
         Self { node, view }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
+    pub digest: Digest,
     pub payload: Vec<u8>,
 }
 
 impl From<Vec<u8>> for Transaction {
     fn from(payload: Vec<u8>) -> Self {
-        Self { payload }
+        let digest = hash(&payload);
+        Self { digest, payload }
     }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Block {
+    pub hash: Digest,
     pub height: usize,
-    pub prev_hash: Hash,
+    pub(crate) prev_hash: Digest,
     pub justify: QC,
     // #[serde(with = "BigArray")]
     pub payloads: Vec<Transaction>,
@@ -122,20 +125,24 @@ impl std::fmt::Debug for Block {
 impl Block {
     pub fn genesis() -> Self {
         Self {
+            hash: Digest::genesis_digest(),
             height: 0,
-            prev_hash: 0,
-            justify: QC { node: 0, view: 0 },
+            prev_hash: Digest::genesis_digest(),
+            justify: QC {
+                node: Digest::default(),
+                view: 0,
+            },
             payloads: Vec::new(),
             timestamp: 0,
         }
     }
 
-    pub fn hash(&self) -> Hash {
-        self.height as Hash
+    pub fn hash(&self) -> Digest {
+        self.hash
     }
 
     pub fn new(
-        prev_hash: Hash,
+        prev_hash: Digest,
         prev_height: usize,
         justify: QC,
         payloads: Vec<Transaction>,
@@ -144,7 +151,16 @@ impl Block {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(prev_hash.as_bytes());
+        hasher.update(justify.node.as_bytes());
+        for x in &payloads {
+            hasher.update(x.digest.as_bytes());
+        }
+        let hash = hasher.finalize();
+
         Self {
+            hash: hash.into(),
             height: prev_height + 1,
             prev_hash,
             justify,
@@ -162,24 +178,24 @@ pub(crate) enum BlockType {
 
 pub(crate) struct BlockTree {
     pub(crate) config: NodeConfig,
-    pub(crate) blocks: HashMap<Hash, (Block, BlockType)>,
-    pub(crate) finalized_time: HashMap<Hash, u64>,
+    pub(crate) blocks: HashMap<Digest, (Block, BlockType)>,
+    pub(crate) finalized_time: HashMap<Digest, u64>,
     /// latest finalized block (always key block)
-    pub(crate) finalized: Hash,
+    pub(crate) finalized: Digest,
     pub(crate) block_generator: BlockGenerator,
     // pub(crate) finalized_block_tx: Option<Sender<(Block, BlockType, u64)>>,
-    pub(crate) parent_key_block: HashMap<Hash, Hash>,
+    pub(crate) parent_key_block: HashMap<Digest, Digest>,
     /// We always make leaf block as a child of latest_key_block.
     /// This is equivalent to the B_leaf in the Pseudocode.
-    pub(crate) latest_key_block: Hash,
+    pub(crate) latest_key_block: Digest,
     /// The latest block we are tracking.
     /// This is always a direct descendant of latest_key_block.
     /// This is used to track in-between blocks.
-    pub(crate) latest: Hash,
+    pub(crate) latest: Digest,
     pub(crate) enable_metrics: bool,
     /// Tracking all the leaves that is not latest_key_block.
     /// Then we can easily garbage collect the blocks.
-    pub(crate) other_leaves: Vec<Hash>,
+    pub(crate) other_leaves: Vec<Digest>,
 }
 
 impl BlockTree {
@@ -207,7 +223,7 @@ impl BlockTree {
         }
     }
 
-    fn get(&self, hash: Hash) -> Option<&(Block, BlockType)> {
+    fn get(&self, hash: Digest) -> Option<&(Block, BlockType)> {
         self.blocks.get(&hash)
     }
 
@@ -233,7 +249,7 @@ impl BlockTree {
     }
 
     pub(crate) fn genesis(&self) -> &(Block, BlockType) {
-        self.get(0).unwrap()
+        self.get(Digest::default()).unwrap()
     }
 
     /// New key block always be built upon latest_key_block.
@@ -331,14 +347,14 @@ impl BlockTree {
     /// If the block is finalized.
     ///
     /// * `block`: the block to be checked.
-    pub(crate) fn finalized(&self, block: Hash) -> bool {
+    pub(crate) fn finalized(&self, block: Digest) -> bool {
         self.finalized_time.contains_key(&block)
     }
 
     /// Finalize the block and its ancestors.
     ///
     /// * `block`: the block to be finalized.
-    pub(crate) fn finalize(&mut self, block: Hash) -> Vec<(Block, BlockType, u64)> {
+    pub(crate) fn finalize(&mut self, block: Digest) -> Vec<(Block, BlockType, u64)> {
         let mut finalized_blocks = Vec::new();
         let finalized_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -419,7 +435,7 @@ impl BlockTree {
 
     /// If child is a direct descendant of parent.
     // must be key blocks
-    pub(crate) fn is_parent(&self, parent: Hash, child: Hash) -> bool {
+    pub(crate) fn is_parent(&self, parent: Digest, child: Digest) -> bool {
         self.parent_key_block.get(&child) == Some(&parent)
         // let mut current = self.get(child).unwrap().0.prev_hash;
         // while current != parent {
@@ -435,7 +451,7 @@ impl BlockTree {
 
     /// If child is a descendant of parent.
     // must be key blocks
-    pub(crate) fn extends(&self, parent: Hash, child: Hash) -> bool {
+    pub(crate) fn extends(&self, parent: Digest, child: Digest) -> bool {
         let mut current = child;
         while current != parent {
             if self.blocks.get(&current).unwrap().0.height
@@ -453,7 +469,7 @@ impl BlockTree {
         true
     }
 
-    pub(crate) fn get_block(&self, hash: Hash) -> Option<&(Block, BlockType)> {
+    pub(crate) fn get_block(&self, hash: Digest) -> Option<&(Block, BlockType)> {
         self.get(hash)
     }
 
@@ -461,7 +477,7 @@ impl BlockTree {
         self.enable_metrics = true;
     }
 
-    fn prune(&mut self, block: Hash) {
+    fn prune(&mut self, block: Digest) {
         let mut current = block;
         debug!("current: {}", current);
         if !self.finalized(current) {
@@ -509,7 +525,7 @@ impl BlockTree {
         }
     }
 
-    fn get_parent_key_block(&self, in_between: Hash) -> Hash {
+    fn get_parent_key_block(&self, in_between: Digest) -> Digest {
         let mut current = self.get(in_between).unwrap();
         while current.1 != BlockType::Key {
             current = self.get(current.0.prev_hash).unwrap();
@@ -518,7 +534,7 @@ impl BlockTree {
         current.0.hash()
     }
 
-    pub(crate) fn switch_latest_key_block(&mut self, node: u64) {
+    pub(crate) fn switch_latest_key_block(&mut self, node: Digest) {
         // if self.latest_key_block, self.latest,
         // and node is on the same chain, then there is no fork.
 
@@ -563,14 +579,14 @@ impl BlockGenerator {
         }
     }
 
-    fn new_block(&mut self, prev_hash: Hash, prev_height: usize, justify: QC) -> Block {
+    fn new_block(&mut self, prev_hash: Digest, prev_height: usize, justify: QC) -> Block {
         self.new_block_with_lowerbound(prev_hash, prev_height, justify, 0)
             .unwrap()
     }
 
     fn new_block_with_lowerbound(
         &mut self,
-        prev_hash: Hash,
+        prev_hash: Digest,
         prev_height: usize,
         justify: QC,
         lowerbound: usize,

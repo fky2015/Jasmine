@@ -49,7 +49,7 @@ impl FakeClient {
                     command_type: CommandType::Set(0, 0),
                 };
 
-                let tx = Transaction::from(payload.serialize(command_size));
+                let tx = Transaction::from(payload.serialize(command_size - 32));
 
                 self.transport.send(tx.clone()).await.unwrap();
                 index += 1;

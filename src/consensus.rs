@@ -1,4 +1,5 @@
 use crate::{
+    crypto::Digest,
     data::{BlockType, QC},
     node_config::NodeConfig,
     Hash,
@@ -26,23 +27,23 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Message {
+pub(crate) enum Message {
     Propose(Block),
     ProposeInBetween(Block),
-    Vote(Hash),
+    Vote(Digest),
     NewView(QC),
 }
 
 impl Message {}
 
-pub struct VoterState {
+pub(crate) struct VoterState {
     pub id: u64,
     pub view: u64,
     pub threshold: usize,
     pub generic_qc: QC,
     pub locked_qc: QC,
     // <view, (what, whos)>
-    pub votes: HashMap<u64, HashMap<u64, Vec<u64>>>,
+    pub votes: HashMap<u64, HashMap<Digest, Vec<u64>>>,
     pub notify: Arc<Notify>,
     pub best_view: Arc<AtomicU64>,
     // <view, (whos)>
@@ -94,10 +95,9 @@ impl VoterState {
     pub(crate) fn add_vote(
         &mut self,
         msg_view: u64,
-        block_hash: Hash,
+        block_hash: Digest,
         voter_id: u64,
     ) -> Option<QC> {
-        // println!("add_vote: {:?} {:?} {:?}", msg_view, block_hash, voter_id);
         let view_map = self.votes.entry(msg_view).or_default();
         let voters = view_map.entry(block_hash).or_default();
         // TODO: check if voter_id is already in voters

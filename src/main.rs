@@ -28,6 +28,7 @@ mod metrics;
 mod network;
 mod node;
 mod node_config;
+mod crypto;
 
 pub type Hash = u64;
 
