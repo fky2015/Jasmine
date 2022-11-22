@@ -68,4 +68,3 @@ cargo run -- fail-test
 ## TODO
 
 - [ ] Error handles
-- [ ] crypto
