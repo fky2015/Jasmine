@@ -14,6 +14,12 @@ Consensus performance is calculated via T2 and T3.
 We mainly focus on consensus performance here, since it reflects how consensus
 works.
 
+## Quick Start
+
+```Bash
+cargo r
+```
+
 ## Usage
 
 Generate config files for multi replicas over multi hosts.
