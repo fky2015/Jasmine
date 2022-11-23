@@ -60,8 +60,8 @@ pub(crate) struct ClientConfig {
 impl Default for ClientConfig {
     fn default() -> Self {
         Self {
-            use_instant_generator: true,
-            injection_rate: 1_000_000,
+            use_instant_generator: false,
+            injection_rate: 100_000,
         }
     }
 }
@@ -217,7 +217,6 @@ impl NodeConfig {
             None => Ok(Default::default()),
         };
 
-        // TODO: Override more config with cli
         config.map(|mut cfg: NodeConfig| {
             if cli.disable_jasmine {
                 cfg.consensus = ConsensusType::HotStuff;
@@ -233,6 +232,18 @@ impl NodeConfig {
 
             if cli.pretend_failure {
                 cfg.node_settings.pretend_failure = true;
+            }
+
+            if let Some(v) = cli.injection_rate {
+                cfg.client.injection_rate = v;
+            }
+
+            if let Some(v) = cli.transaction_size {
+                cfg.node_settings.transaction_size = v;
+            }
+
+            if let Some(v) = cli.batch_size {
+                cfg.node_settings.batch_size = v;
             }
 
             cfg

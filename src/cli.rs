@@ -23,22 +23,31 @@ pub(crate) struct Cli {
     #[arg(short, long)]
     pub(crate) disable_jasmine: bool,
 
-    /// Enable delay_test.
-    #[arg(long)]
-    enable_delay_test: bool,
+    /// Set injection_rate, default value is 100_000 (tx/s).
+    #[arg(short, long)]
+    pub(crate) injection_rate: Option<u64>,
+
+    /// Set transaction_size, default value is 256 (Bytes).
+    #[arg(short, long)]
+    pub(crate) transaction_size: Option<usize>,
+
+    /// Set batch_size, default value is 100 (tx/block).
+    #[arg(short, long)]
+    pub(crate) batch_size: Option<usize>,
 
     /// Pretend to be a failure nodes.
     #[arg(long)]
     pub(crate) pretend_failure: bool,
 
-    /// Disable metrics
+    /// Disable metrics.
     #[arg(long)]
     pub(crate) disable_metrics: bool,
 
-    /// Export metrics to file
+    /// Export metrics to file when node exits.
     #[arg(short, long)]
     pub(crate) export_path: Option<PathBuf>,
 
+    /// Subcommands
     #[command(subcommand)]
     pub(crate) command: Option<Commands>,
 }
@@ -52,6 +61,7 @@ pub(crate) enum Commands {
         number: usize,
     },
 
+    /// Run the node in memory network with some nodes are failure.
     FailTest {
         /// Number of failures.
         #[arg(short, long, default_value_t = 1)]

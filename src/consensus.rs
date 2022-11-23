@@ -385,7 +385,7 @@ impl ConsensusVoter {
 
                     // WARN: As a POC, we suppose all the blocks are valid by application logic.
                     block.verify().unwrap();
-                    
+
                     if from != id {
                         self.env
                             .lock()
@@ -540,10 +540,6 @@ impl ConsensusVoter {
             // TODO: no need to clone.
             let voters = self.env.lock().voter_set.clone();
             let view = self.state.lock().view;
-
-            if self.config.get_test_mode().delay_test && view > 6 {
-                exit(0)
-            }
 
             if Self::get_leader(view, &voters) == id {
                 tracing::trace!("{}: start as leader in view: {}", id, view);
