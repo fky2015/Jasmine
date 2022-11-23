@@ -204,13 +204,16 @@ struct ExecutionPlan {
     // Vec<(path to config file)>
     configs: Vec<ConfigFile>,
     host: String,
+    /// Start from 0
+    index: usize,
 }
 
 impl ExecutionPlan {
-    fn new(host: String) -> Self {
+    fn new(index: usize, host: String) -> Self {
         Self {
             configs: Vec::new(),
             host,
+            index,
         }
     }
 
@@ -230,7 +233,7 @@ impl ExecutionPlan {
         let mut content: String = "#!/bin/bash\n".to_string();
         let mut trap_threads_line = "trap 'kill".to_string();
         for (i, pair) in ret.iter().enumerate() {
-            if i == 0 {
+            if i == 0 && self.index == 0 {
                 content.push_str(&format!(
                     "./jasmine --config {} --export-path result.json &\n",
                     pair.0.display()
@@ -302,8 +305,8 @@ impl DistributionPlan {
             });
 
         let mut execution_plans = Vec::new();
-        for host in &hosts {
-            execution_plans.push(ExecutionPlan::new(host.to_owned()));
+        for (idx, host) in hosts.iter().enumerate() {
+            execution_plans.push(ExecutionPlan::new(idx, host.to_owned()));
         }
 
         voter_set
@@ -318,7 +321,7 @@ impl DistributionPlan {
                     config.set_pretend_failure();
                 }
 
-                let index = idx as usize % hosts.len();
+                let index = idx % hosts.len();
 
                 execution_plans
                     .get_mut(index)
@@ -340,25 +343,27 @@ impl DistributionPlan {
 
         let mut content: String = "#!/bin/bash\n".to_string();
 
-        for host in hosts {
-            content.push_str(&format!(
-                "scp {}:result.json result-{}.json &\n",
-                host, host
-            ));
-        }
+        let first_host = hosts.get(0).expect("Hosts cannot be empty.");
+        // TODO: Better result file name.
+        content.push_str(&format!(
+            "while ! scp {}:result.json result-{}.json > /dev/null; do sleep 5; done\n",
+            first_host, first_host
+        ));
 
         ret.push((Path::new("get-results.sh").to_path_buf(), content));
 
-        let mut content: String = "#!/bin/bash\n".to_string();
+        let mut content: String = "#!/bin/bash\nset -x\n".to_string();
         content.push_str("bash distribute.sh\n");
         content.push_str("bash run-remotes.sh\n");
         content.push_str("bash get-results.sh\n");
+        content.push_str("bash clean-all.sh\n");
 
         ret.push((Path::new("run-all.sh").to_path_buf(), content));
 
         let mut content: String = "#!/bin/bash\n".to_string();
         for host in hosts {
             content.push_str(&format!("ssh {} 'rm ./*.json' &\n", host));
+            content.push_str(&format!("ssh {} 'killall jasmine' &\n", host));
         }
 
         ret.push((Path::new("clean-all.sh").to_path_buf(), content));
