@@ -250,13 +250,6 @@ impl NodeConfig {
         })
     }
 
-    /// Deprecated!
-    pub fn clone_with_id(&self, id: PublicKey) -> Self {
-        let mut config = self.clone();
-        config.id = id;
-        config
-    }
-
     pub fn clone_with_keypair(&self, id: PublicKey, private_key: Keypair) -> Self {
         let mut config = self.clone();
         config.id = id;
@@ -277,7 +270,7 @@ impl NodeConfig {
     pub fn get_peer_addrs(&self) -> HashMap<PublicKey, SocketAddr> {
         let mut ret = HashMap::new();
         for (k, v) in &self.peer_addrs {
-            ret.insert(*k, v.clone());
+            ret.insert(*k, *v);
         }
         ret
     }

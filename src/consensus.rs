@@ -5,7 +5,6 @@ use crate::{
 };
 use std::{
     collections::HashMap,
-    process::exit,
     slice::Iter,
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -220,7 +219,7 @@ impl Voter {
         let generic_qc = self.env.lock().block_tree.genesis().0.justify.clone();
         let voters = self.env.lock().voter_set.to_owned();
         let state = Arc::new(Mutex::new(VoterState::new(
-            self.id.clone(),
+            self.id,
             self.view,
             generic_qc,
             voters.threshold(),
@@ -342,7 +341,7 @@ impl ConsensusVoter {
     }
 
     async fn run_as_voter(self) {
-        let id = self.state.lock().id.clone();
+        let id = self.state.lock().id;
         let finalized_block_tx = self.env.lock().finalized_block_tx.to_owned();
         let voters = {
             let env = self.env.lock();
@@ -408,8 +407,8 @@ impl ConsensusVoter {
 
                             // Suppose the block is valid, vote for it
                             Some(Self::package_message(
-                                id.clone(),
-                                Message::Vote(hash, id.clone(), self.config.sign(&hash)),
+                                id,
+                                Message::Vote(hash, id, self.config.sign(&hash)),
                                 current_view,
                                 Some(Self::get_leader(current_view + 1, &voters)),
                             ))
@@ -531,7 +530,7 @@ impl ConsensusVoter {
     }
 
     async fn run_as_leader(self) {
-        let id = self.state.lock().id.clone();
+        let id = self.state.lock().id;
 
         // println!("{}: leader start", id);
 
@@ -554,7 +553,7 @@ impl ConsensusVoter {
                             self.env.to_owned(),
                             view,
                             generic_qc.to_owned(),
-                            id.clone(),
+                            id,
                             *minimal_batch_size,
                         );
 
@@ -566,13 +565,11 @@ impl ConsensusVoter {
                     } else {
                         tokio::task::yield_now().await;
                     }
-
-                    // TODO: stop sending when timeout
                 }
 
                 // onPropose
                 let generic_qc = self.state.lock().generic_qc.clone();
-                let pkg = Self::new_key_block(self.env.to_owned(), view, generic_qc, id.clone());
+                let pkg = Self::new_key_block(self.env.to_owned(), view, generic_qc, id);
                 tracing::trace!("{}: leader propose block in view: {}", id, view);
                 tx.send(pkg).await.unwrap();
             }
@@ -624,7 +621,7 @@ impl ConsensusVoter {
     fn new_new_view(&self, view: u64, next_leader: PublicKey) -> NetworkPackage {
         let new_view = Message::NewView(self.state.lock().generic_qc.clone());
         Self::package_message(
-            self.state.lock().id.clone(),
+            self.state.lock().id,
             new_view,
             view,
             Some(next_leader),

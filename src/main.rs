@@ -2,7 +2,7 @@
 // TODO: metrics critical path to see what affects performance.
 
 use std::{
-    collections::{BTreeMap},
+    collections::BTreeMap,
     env,
     fs::{self, File},
     io::Write,
@@ -47,7 +47,7 @@ async fn main() -> Result<()> {
 
             // Mock peers
             config.override_voter_set(&VoterSet::new(
-                voter_set.iter().map(|(pk, _)| pk.clone()).collect(),
+                voter_set.iter().map(|(pk, _)| *pk).collect(),
             ));
 
             // Prepare the environment.
@@ -293,10 +293,10 @@ impl DistributionPlan {
             .enumerate()
             .for_each(|(idx, (pub_key, _priv_key))| {
                 peer_addrs.insert(
-                    pub_key.clone(),
+                    *pub_key,
                     format!(
                         "{}:{}",
-                        hosts.get(idx as usize % hosts.len()).unwrap().to_owned(),
+                        hosts.get(idx % hosts.len()).unwrap().to_owned(),
                         8123 + idx
                     )
                     .to_socket_addrs()

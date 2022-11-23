@@ -162,7 +162,7 @@ impl Block {
         Self {
             signature,
             author,
-            hash: hash.into(),
+            hash,
             height: prev_height + 1,
             prev_hash,
             justify,
