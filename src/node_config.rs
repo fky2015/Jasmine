@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
@@ -288,7 +288,7 @@ impl NodeConfig {
     }
 
     pub fn get_voter_set(&self) -> VoterSet {
-        let mut v: Vec<_> = self.peer_addrs.keys().cloned().collect();
+        let v: Vec<_> = self.peer_addrs.keys().cloned().collect();
         VoterSet::new(v)
     }
 

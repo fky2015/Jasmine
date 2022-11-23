@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::crypto::CryptoError;
+
 use crate::crypto::{hash, Digest, Keypair, PublicKey, Signature};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};

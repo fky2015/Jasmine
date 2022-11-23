@@ -2,7 +2,7 @@
 // TODO: metrics critical path to see what affects performance.
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap},
     env,
     fs::{self, File},
     io::Write,
@@ -79,7 +79,7 @@ async fn main() -> Result<()> {
         }
         Some(Commands::FailTest { number }) => {
             let total = number * 3 + 1;
-            let mut voter_set: Vec<_> = generate_keypairs(total);
+            let voter_set: Vec<_> = generate_keypairs(total);
             let genesis = data::Block::genesis();
             let mut network = MemoryNetwork::new();
 

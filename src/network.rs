@@ -287,11 +287,11 @@ impl FailureReceiver {
         }
     }
 
-    async fn spawn_runner(socket: TcpStream, peer: SocketAddr, sender: Sender<NetworkPackage>) {
+    async fn spawn_runner(socket: TcpStream, _peer: SocketAddr, _sender: Sender<NetworkPackage>) {
         tokio::spawn(async move {
             let (mut _writer, mut reader) =
                 Framed::new(socket, LengthDelimitedCodec::new()).split();
-            while let Some(result) = reader.next().await {}
+            while let Some(_result) = reader.next().await {}
         });
     }
 }
