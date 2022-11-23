@@ -25,7 +25,7 @@ pub(crate) struct Cli {
 
     /// Set injection_rate, default value is 100_000 (tx/s).
     #[arg(short, long)]
-    pub(crate) injection_rate: Option<u64>,
+    pub(crate) rate: Option<u64>,
 
     /// Set transaction_size, default value is 256 (Bytes).
     #[arg(short, long)]

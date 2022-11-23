@@ -234,7 +234,7 @@ impl NodeConfig {
                 cfg.node_settings.pretend_failure = true;
             }
 
-            if let Some(v) = cli.injection_rate {
+            if let Some(v) = cli.rate {
                 cfg.client.injection_rate = v;
             }
 
