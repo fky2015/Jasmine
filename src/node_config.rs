@@ -34,6 +34,8 @@ pub(crate) struct NodeSettings {
     /// For best performance, this should be a multiple of batch_size.
     pub(crate) mempool_size: usize,
     pub(crate) pretend_failure: bool,
+    /// Rotate leadership every `rotate_every` key blocks.
+    pub(crate) leader_rotation: usize,
 }
 
 impl Default for NodeSettings {
@@ -43,6 +45,7 @@ impl Default for NodeSettings {
             batch_size: 100,
             mempool_size: 1000,
             pretend_failure: false,
+            leader_rotation: 1000,
         }
     }
 }
@@ -244,6 +247,10 @@ impl NodeConfig {
 
             if let Some(v) = cli.batch_size {
                 cfg.node_settings.batch_size = v;
+            }
+
+            if let Some(v) = cli.leader_rotation {
+                cfg.node_settings.leader_rotation = v;
             }
 
             cfg

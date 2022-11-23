@@ -273,10 +273,10 @@ impl ConsensusVoter {
         }
     }
 
-    fn get_leader(view: u64, voters: &VoterSet) -> PublicKey {
+    fn get_leader(view: u64, voters: &VoterSet, leader_rotation: usize) -> PublicKey {
         voters
             .voters
-            .get(((view / 100) % voters.voters.len() as u64) as usize)
+            .get(((view / leader_rotation as u64) % voters.voters.len() as u64) as usize)
             .unwrap()
             .to_owned()
     }
@@ -343,6 +343,7 @@ impl ConsensusVoter {
     async fn run_as_voter(self) {
         let id = self.state.lock().id;
         let finalized_block_tx = self.env.lock().finalized_block_tx.to_owned();
+        let leader_rotation = self.config.get_node_settings().leader_rotation;
         let voters = {
             let env = self.env.lock();
             env.voter_set.to_owned()
@@ -410,7 +411,7 @@ impl ConsensusVoter {
                                 id,
                                 Message::Vote(hash, id, self.config.sign(&hash)),
                                 current_view,
-                                Some(Self::get_leader(current_view + 1, &voters)),
+                                Some(Self::get_leader(current_view + 1, &voters, leader_rotation)),
                             ))
                         } else {
                             trace!(
@@ -531,6 +532,7 @@ impl ConsensusVoter {
 
     async fn run_as_leader(self) {
         let id = self.state.lock().id;
+        let leader_rotation = self.config.get_node_settings().leader_rotation;
 
         // println!("{}: leader start", id);
 
@@ -540,7 +542,7 @@ impl ConsensusVoter {
             let voters = self.env.lock().voter_set.clone();
             let view = self.state.lock().view;
 
-            if Self::get_leader(view, &voters) == id {
+            if Self::get_leader(view, &voters, leader_rotation) == id {
                 tracing::trace!("{}: start as leader in view: {}", id, view);
                 // qc for in-between blocks
                 let generic_qc = { self.state.lock().generic_qc.to_owned() };
@@ -583,7 +585,7 @@ impl ConsensusVoter {
                     "{}: leader notified, view: {}, leader: {}",
                     id,
                     view,
-                    Self::get_leader(view, &voters)
+                    Self::get_leader(view, &voters, leader_rotation)
                 );
             }
         }
@@ -620,21 +622,17 @@ impl ConsensusVoter {
 
     fn new_new_view(&self, view: u64, next_leader: PublicKey) -> NetworkPackage {
         let new_view = Message::NewView(self.state.lock().generic_qc.clone());
-        Self::package_message(
-            self.state.lock().id,
-            new_view,
-            view,
-            Some(next_leader),
-        )
+        Self::package_message(self.state.lock().id, new_view, view, Some(next_leader))
     }
 
     // -> (leaderId, view)
     fn get_next_leader(&self) -> (PublicKey, u64) {
         let mut view = self.state.lock().view;
-        let current_leader = Self::get_leader(view, &self.env.lock().voter_set);
+        let leader_rotation = self.config.get_node_settings().leader_rotation;
+        let current_leader = Self::get_leader(view, &self.env.lock().voter_set, leader_rotation);
         loop {
             view += 1;
-            let next_leader = Self::get_leader(view, &self.env.lock().voter_set);
+            let next_leader = Self::get_leader(view, &self.env.lock().voter_set, leader_rotation);
             if next_leader != current_leader {
                 return (next_leader, view);
             }

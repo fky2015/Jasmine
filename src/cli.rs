@@ -43,6 +43,10 @@ pub(crate) struct Cli {
     #[arg(long)]
     pub(crate) disable_metrics: bool,
 
+    /// Rotate leadership every `rotate_every` key blocks.
+    #[arg(long)]
+    pub(crate) leader_rotation: Option<usize>,
+
     /// Export metrics to file when node exits.
     #[arg(short, long)]
     pub(crate) export_path: Option<PathBuf>,
