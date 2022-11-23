@@ -86,6 +86,19 @@ impl Default for ConsensusType {
     }
 }
 
+impl std::fmt::Display for ConsensusType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Jasmine {
+                minimal_batch_size: _,
+            } => {
+                write!(f, "jasmine")
+            }
+            Self::HotStuff => write!(f, "hotstuff"),
+        }
+    }
+}
+
 impl ConsensusType {
     // pub(crate) fn is_jasmine(&self) -> bool {
     //     matches!(self, Self::Jasmine { .. })

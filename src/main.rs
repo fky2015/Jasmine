@@ -222,7 +222,7 @@ impl ExecutionPlan {
     }
 
     /// Generate execution plan script to run the nodes.
-    fn dry_run(&self) -> Result<Vec<(PathBuf, String)>> {
+    fn dry_run(&self, result_label: &str) -> Result<Vec<(PathBuf, String)>> {
         let parent_dir = Path::new(&self.host);
         let mut ret = Vec::new();
         for config in self.configs.iter() {
@@ -235,8 +235,9 @@ impl ExecutionPlan {
         for (i, pair) in ret.iter().enumerate() {
             if i == 0 && self.index == 0 {
                 content.push_str(&format!(
-                    "./jasmine --config {} --export-path result.json &\n",
-                    pair.0.display()
+                    "./jasmine --config {} --export-path result-{}.json &\n",
+                    pair.0.display(),
+                    result_label
                 ));
             } else {
                 content.push_str(&format!(
@@ -270,6 +271,7 @@ impl ExecutionPlan {
 
 struct DistributionPlan {
     execution_plans: Vec<ExecutionPlan>,
+    result_label: String,
 }
 
 /// Generate a distribution plan to distribute corresponding files.
@@ -329,10 +331,31 @@ impl DistributionPlan {
                     .add(config);
             });
 
-        DistributionPlan { execution_plans }
+        DistributionPlan {
+            execution_plans,
+            result_label: Self::get_result_label(number, hosts.len(), failure_nodes, base_config),
+        }
     }
 
-    fn new_run_scripts(hosts: &Vec<String>) -> Result<Vec<(PathBuf, String)>> {
+    fn get_result_label(
+        number: usize,
+        hosts_len: usize,
+        failure_nodes: usize,
+        base_config: NodeConfig,
+    ) -> String {
+        format!(
+            "{}-n{}-h{}-f{}-ts{}-bs{}-ir{}",
+            base_config.get_consensus_type(),
+            number,
+            hosts_len,
+            failure_nodes,
+            base_config.get_node_settings().transaction_size,
+            base_config.get_node_settings().batch_size,
+            base_config.get_client_config().injection_rate,
+        )
+    }
+
+    fn new_run_scripts(&self, hosts: &Vec<String>) -> Result<Vec<(PathBuf, String)>> {
         let mut ret = Vec::new();
         let mut content: String = "#!/bin/bash\n".to_string();
         for host in hosts {
@@ -346,8 +369,8 @@ impl DistributionPlan {
         let first_host = hosts.get(0).expect("Hosts cannot be empty.");
         // TODO: Better result file name.
         content.push_str(&format!(
-            "while ! scp {}:result.json result-{}.json 2>/dev/null; do sleep 5; done\n",
-            first_host, first_host
+            "while ! scp {}:result-{}.json result-{}.json 2>/dev/null; do sleep 5; done\n",
+            first_host, self.result_label, self.result_label
         ));
 
         ret.push((Path::new("get-results.sh").to_path_buf(), content));
@@ -376,7 +399,7 @@ impl DistributionPlan {
         let mut ret = Vec::new();
 
         self.execution_plans.iter().for_each(|plan| {
-            let plan = plan.dry_run().unwrap();
+            let plan = plan.dry_run(&self.result_label).unwrap();
             ret.extend_from_slice(plan.as_slice());
         });
 
@@ -389,7 +412,7 @@ impl DistributionPlan {
             panic!("please build jasmine release first!");
         }
 
-        let mut content = "#!/bin/bash\ncargo build --release\n".to_string();
+        let mut content = "#!/bin/bash\nset -ex\ncargo build --release\n".to_string();
         self.execution_plans
             .iter()
             .enumerate()
@@ -405,7 +428,7 @@ impl DistributionPlan {
         ret.push((Path::new("distribute.sh").to_path_buf(), content));
 
         ret.extend_from_slice(
-            Self::new_run_scripts(
+            self.new_run_scripts(
                 &self
                     .execution_plans
                     .iter()
