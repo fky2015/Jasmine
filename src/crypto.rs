@@ -99,8 +99,12 @@ impl PublicKey {
         Ok(PublicKey(key))
     }
 
+    fn to_base32(self) -> String {
+        base32::encode(base32::Alphabet::Crockford, &self.0)
+    }
+
     pub fn display(&self) -> String {
-        self.encode().chars().take(8).collect::<String>()
+        self.to_base32().chars().take(8).collect::<String>()
     }
 
     pub fn verify(&self, msg: &Digest, signature: &Signature) -> Result<(), CryptoError> {

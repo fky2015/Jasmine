@@ -240,7 +240,7 @@ impl ExecutionPlan {
                 ));
             } else {
                 content.push_str(&format!(
-                    "./jasmine --config {} --disable-metrics >/dev/null &\n",
+                    "./jasmine --config {} --disable-metrics &>/dev/null &\n",
                     pair.0.display()
                 ));
             }
@@ -346,7 +346,7 @@ impl DistributionPlan {
         let first_host = hosts.get(0).expect("Hosts cannot be empty.");
         // TODO: Better result file name.
         content.push_str(&format!(
-            "while ! scp {}:result.json result-{}.json > /dev/null; do sleep 5; done\n",
+            "while ! scp {}:result.json result-{}.json 2>/dev/null; do sleep 5; done\n",
             first_host, first_host
         ));
 
@@ -364,6 +364,7 @@ impl DistributionPlan {
         for host in hosts {
             content.push_str(&format!("ssh {} 'rm ./*.json' &\n", host));
             content.push_str(&format!("ssh {} 'killall jasmine' &\n", host));
+            content.push_str(&format!("rm {}/*.json\n", host));
         }
 
         ret.push((Path::new("clean-all.sh").to_path_buf(), content));
