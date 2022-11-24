@@ -596,7 +596,10 @@ impl ConsensusVoter {
                 // Received a message from future view, buffer it.
                 trace!(
                     "{}: future (view: {}, current_view: {}) buffer pkg: {:?}",
-                    id, view, current_view, pkg
+                    id,
+                    view,
+                    current_view,
+                    pkg
                 );
                 if let Some(v) = buffer.get_mut(&view) {
                     v.push(pkg);

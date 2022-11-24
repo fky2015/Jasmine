@@ -468,9 +468,7 @@ impl BlockTree {
                     panic!()
                 }
             };
-            if current_height
-                <= self.blocks.get(&parent).unwrap().0.height
-            {
+            if current_height <= self.blocks.get(&parent).unwrap().0.height {
                 // Not in the same chain
                 return false;
             }
