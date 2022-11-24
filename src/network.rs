@@ -3,6 +3,7 @@ use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
+use tracing::warn;
 
 use crate::{consensus::NetworkPackage, crypto::PublicKey};
 use tokio::{
@@ -301,9 +302,16 @@ impl SimpleReceiver {
         });
     }
     async fn run(&self) {
-        let listener = TcpListener::bind(&self.address)
-            .await
-            .expect("Failed to bind address");
+        let listener = loop {
+            match TcpListener::bind(&self.address).await {
+                Ok(listener) => break listener,
+                Err(err) => {
+                    warn!("Failed to bind address: {}", err);
+                }
+            }
+
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        };
 
         loop {
             let (socket, peer) = match listener.accept().await {
