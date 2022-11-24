@@ -140,9 +140,16 @@ impl Metrics {
                 < self.config.get_metrics().stable_threshold
     }
 
+    fn stop_after_n_samples(&self) -> bool {
+        if let Some(n) = self.config.get_metrics().stop_after_n_samples {
+            self.next_sample_index > n
+        } else {
+            false
+        }
+    }
+
     fn try_exit(&mut self) -> Result<()> {
-        if self.high_enough() || self.stable() {
-            // TODO: export data to file first.
+        if self.high_enough() || self.stable() || self.stop_after_n_samples() {
             if let Some(path) = self.config.get_metrics().export_path.clone() {
                 self.export(&path)?;
             }
@@ -162,11 +169,12 @@ impl Metrics {
 
         file.write_all(serde_json::to_string_pretty(&metrics_result)?.as_bytes())?;
 
+        tracing::info!("Metrics exported to {}", path.display());
+
         Ok(())
     }
 }
 
-// TODO: Every batch size?
 #[allow(dead_code)]
 #[derive(Serialize)]
 struct MetricsSample {
@@ -209,7 +217,7 @@ impl std::fmt::Display for MetricsSample {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Average delay: {} ms, Throughput: {} Kops/sec, key:in-between: {}:{}, finalized_blocks: {}, average_batch_size: {}, key_delay: {}",
+            "Average delay: {:.2} ms, Throughput: {:.3} Kops/sec, key:in-between: {:.2}:{:.2}, finalized_blocks: {}, average_batch_size: {:.2}, key_delay: {:.2}",
             self.average_delay,
             self.consensus_throughput,
             self.key_block_ratio,

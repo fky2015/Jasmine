@@ -238,6 +238,7 @@ impl Voter {
         let handler1 = tokio::spawn(async {
             leader.run_as_leader().await;
         });
+
         let handler2 = tokio::spawn(async {
             voter.run_as_voter().await;
         });
@@ -577,7 +578,7 @@ impl ConsensusVoter {
             }
 
             let notify = self.state.lock().notify.clone();
-            // awake if the view is changed.
+            // Get awoke if the view is changed.
             notify.notified().await;
             {
                 let view = self.state.lock().view;

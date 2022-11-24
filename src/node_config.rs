@@ -41,11 +41,11 @@ pub(crate) struct NodeSettings {
 impl Default for NodeSettings {
     fn default() -> Self {
         Self {
-            transaction_size: 256,
-            batch_size: 100,
-            mempool_size: 1000,
+            transaction_size: 512,
+            batch_size: 1000,
+            mempool_size: 2000,
             pretend_failure: false,
-            leader_rotation: 1000,
+            leader_rotation: 10000,
         }
     }
 }
@@ -64,7 +64,7 @@ impl Default for ClientConfig {
     fn default() -> Self {
         Self {
             use_instant_generator: false,
-            injection_rate: 100_000,
+            injection_rate: 10_000_000,
         }
     }
 }
@@ -84,7 +84,7 @@ pub(crate) enum ConsensusType {
 impl Default for ConsensusType {
     fn default() -> Self {
         Self::Jasmine {
-            minimal_batch_size: 40,
+            minimal_batch_size: 500,
         }
     }
 }
@@ -143,6 +143,9 @@ pub(crate) struct Metrics {
     /// Print the metrics data to stdout every n samples.
     /// If not provided, never report.
     pub(crate) report_every_n_samples: Option<usize>,
+    /// Stop the node after `n` samples.
+    /// If not provided, never stop.
+    pub(crate) stop_after_n_samples: Option<usize>,
 }
 
 impl Default for Metrics {
@@ -151,12 +154,13 @@ impl Default for Metrics {
             enabled: true,
             stop_after: None,
             trace_finalization: false,
-            sampling_interval: 2000,
+            sampling_interval: 500,
             export_path: None,
             stop_after_stable: true,
-            stable_threshold: 0.5,
+            stable_threshold: 1.0,
             sampling_window: 20,
-            report_every_n_samples: Some(1),
+            report_every_n_samples: Some(4),
+            stop_after_n_samples: Some(30),
         }
     }
 }
