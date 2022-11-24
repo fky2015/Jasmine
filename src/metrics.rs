@@ -20,6 +20,7 @@ use crate::{
 pub(crate) struct Metrics {
     config: NodeConfig,
     finalized_block_rx: Receiver<(Block, BlockType, u64)>,
+    total_e2e_delay: u64,
     total_delay: u64,
     finalized_transactions: u64,
     finalized_blocks: u64,
@@ -38,6 +39,7 @@ impl Metrics {
         Self {
             config,
             finalized_block_rx,
+            total_e2e_delay: 0,
             total_delay: 0,
             key_delay: 0,
             finalized_transactions: 0,
@@ -67,6 +69,17 @@ impl Metrics {
             // transaction statistics
 
             self.total_delay += (finalized_time - block.timestamp) * block.payloads.len() as u64;
+            if !block.payloads.is_empty() {
+                self.total_e2e_delay += (finalized_time
+                    - block
+                        .payloads
+                        .get(0)
+                        .unwrap()
+                        .clone()
+                        .to_command()
+                        .created_time)
+                    * block.payloads.len() as u64;
+            }
 
             if self.config.get_metrics().trace_finalization {
                 tracing::info!(
@@ -178,6 +191,7 @@ impl Metrics {
 #[allow(dead_code)]
 #[derive(Serialize)]
 struct MetricsSample {
+    e2e_delay: f64,
     // ms
     average_delay: f64,
     finalized_transactions: u64,
@@ -191,6 +205,7 @@ struct MetricsSample {
 
 impl MetricsSample {
     fn from_metrics(m: &Metrics) -> Self {
+        let e2e_delay = m.total_e2e_delay as f64 / m.finalized_transactions as f64;
         let average_delay = m.total_delay as f64 / m.finalized_transactions as f64;
         let finalized_transactions = m.finalized_transactions;
         let consensus_throughput =
@@ -202,6 +217,7 @@ impl MetricsSample {
 
         let average_batch_size = m.finalized_transactions as f64 / m.finalized_blocks as f64;
         Self {
+            e2e_delay,
             average_delay,
             finalized_transactions,
             consensus_throughput,
@@ -217,7 +233,8 @@ impl std::fmt::Display for MetricsSample {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Average delay: {:.2} ms, Throughput: {:.3} Kops/sec, key:in-between: {:.2}:{:.2}, finalized_blocks: {}, average_batch_size: {:.2}, key_delay: {:.2}",
+            "E2E delay: {:.2} ms, Average delay: {:.2} ms, Throughput: {:.3} Kops/sec, key:in-between: {:.2}:{:.2}, finalized_blocks: {}, average_batch_size: {:.2}, key_delay: {:.2}",
+            self.e2e_delay,
             self.average_delay,
             self.consensus_throughput,
             self.key_block_ratio,

@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-
 use crate::crypto::{hash, Digest, Keypair, PublicKey, Signature};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -31,7 +30,6 @@ impl Command {
         bytes
     }
 
-    #[allow(dead_code)]
     fn deserialize(bytes: &[u8]) -> Self {
         let serialized = String::from_utf8(bytes.to_vec())
             .unwrap()
@@ -99,6 +97,12 @@ impl From<Vec<u8>> for Transaction {
     fn from(payload: Vec<u8>) -> Self {
         let digest = hash(&payload);
         Self { digest, payload }
+    }
+}
+
+impl Transaction {
+    pub fn to_command(self) -> Command {
+        Command::deserialize(&self.payload)
     }
 }
 

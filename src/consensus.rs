@@ -534,6 +534,7 @@ impl ConsensusVoter {
     async fn run_as_leader(self) {
         let id = self.state.lock().id;
         let leader_rotation = self.config.get_node_settings().leader_rotation;
+        let batch_size = self.config.get_node_settings().batch_size;
 
         // println!("{}: leader start", id);
 
@@ -549,15 +550,16 @@ impl ConsensusVoter {
                 let generic_qc = { self.state.lock().generic_qc.to_owned() };
 
                 while self.collect_view.load(Ordering::SeqCst) + 1 < view {
-                    if let crate::node_config::ConsensusType::Jasmine { minimal_batch_size } =
-                        self.config.get_consensus_type()
+                    if let crate::node_config::ConsensusType::Jasmine {
+                        minimal_batch_size_ratio,
+                    } = self.config.get_consensus_type()
                     {
                         let pkg = Self::new_in_between_block(
                             self.env.to_owned(),
                             view,
                             generic_qc.to_owned(),
                             id,
-                            *minimal_batch_size,
+                            (batch_size as f64 * minimal_batch_size_ratio) as usize,
                         );
 
                         if let Some(pkg) = pkg {

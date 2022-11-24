@@ -72,14 +72,14 @@ impl Default for ClientConfig {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) enum ConsensusType {
     Jasmine {
         /// Consensus Engine will not generate in-between blocks
         /// if actual payload length is less than this value.
         /// This is to prevent the network from being flooded with
         /// empty blocks.
-        minimal_batch_size: usize,
+        minimal_batch_size_ratio: f64,
     },
     HotStuff,
 }
@@ -87,7 +87,10 @@ pub(crate) enum ConsensusType {
 impl Default for ConsensusType {
     fn default() -> Self {
         Self::Jasmine {
-            minimal_batch_size: 500,
+            /// A ratio that determines the minimal batch size.
+            /// The minimal batch size is calculated by
+            /// `minimal_batch_size = batch_size * minimal_batch_size_ratio`.
+            minimal_batch_size_ratio: 0.8,
         }
     }
 }
@@ -96,7 +99,7 @@ impl std::fmt::Display for ConsensusType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Jasmine {
-                minimal_batch_size: _,
+                minimal_batch_size_ratio: _,
             } => {
                 write!(f, "jasmine")
             }

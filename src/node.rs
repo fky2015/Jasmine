@@ -43,7 +43,7 @@ impl Node {
 
     /// Enable and spawn a metrics.
     pub(crate) fn metrics(&self) {
-        let (tx, rx) = tokio::sync::mpsc::channel(100);
+        let (tx, rx) = tokio::sync::mpsc::channel(10000);
         self.env.lock().register_finalized_block_tx(tx);
         self.env.lock().block_tree.enable_metrics();
         let mut metrics = metrics::Metrics::new(self.config.to_owned(), rx);
