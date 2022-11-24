@@ -460,7 +460,15 @@ impl BlockTree {
     pub(crate) fn extends(&self, parent: Digest, child: Digest) -> bool {
         let mut current = child;
         while current != parent {
-            if self.blocks.get(&current).unwrap().0.height
+            let current_height = match self.blocks.get(&current) {
+                Some(pair) => pair.0.height,
+                None => {
+                    self.debug_blocks();
+                    error!("block not found: block: {}", current,);
+                    panic!()
+                }
+            };
+            if current_height
                 <= self.blocks.get(&parent).unwrap().0.height
             {
                 // Not in the same chain

@@ -544,7 +544,7 @@ impl ConsensusVoter {
             let tx = env.network.get_sender();
             (rx, tx)
         };
-        let mut buffer = BTreeMap::new();
+        let mut buffer: BTreeMap<u64, Vec<NetworkPackage>> = BTreeMap::new();
 
         // The view voted for last block.
         //
@@ -554,38 +554,55 @@ impl ConsensusVoter {
         while let Some(pkg) = rx.recv().await {
             let view = pkg.view.unwrap();
             let current_view = self.state.lock().view;
-            if view < current_view - 1 {
-                // trace!(
-                //     "{}: voter receive pkg from {} with view {} which is too old, pkg: {:?}",
-                //     id,
-                //     from,
-                //     view,
-                //     pkg
-                // );
-                continue;
-            }
 
             if !buffer.is_empty() {
                 while let Some((&view, _)) = buffer.first_key_value() {
                     if view < current_view - 1 {
                         // Stale view
                         buffer.pop_first();
+                        trace!("{}: stale view: {}", id, view);
                     } else if view > current_view {
                         break;
                     } else {
                         // It's time to process the pkg.
-                        let pkg: NetworkPackage = buffer.pop_first().unwrap().1;
-                        self.process_message(pkg, id, &mut voted_view, &tx, &finalized_block_tx)
+                        let pkgs: Vec<NetworkPackage> = buffer.pop_first().unwrap().1;
+                        trace!(
+                            "{}: process buffered (view: {}, current_view: {}) pkgs: {}",
+                            id,
+                            view,
+                            current_view,
+                            pkgs.len()
+                        );
+                        for pkg in pkgs.into_iter() {
+                            self.process_message(
+                                pkg,
+                                id,
+                                &mut voted_view,
+                                &tx,
+                                &finalized_block_tx,
+                            )
                             .await;
+                        }
                     }
                 }
             }
 
             let current_view = self.state.lock().view;
 
-            if view > current_view {
+            if view < current_view - 1 {
+                // Stale view, drop it.
+                continue;
+            } else if view > current_view {
                 // Received a message from future view, buffer it.
-                buffer.insert(view, pkg);
+                trace!(
+                    "{}: future (view: {}, current_view: {}) buffer pkg: {:?}",
+                    id, view, current_view, pkg
+                );
+                if let Some(v) = buffer.get_mut(&view) {
+                    v.push(pkg);
+                } else {
+                    buffer.insert(view, vec![pkg]);
+                }
             } else {
                 // Deal with the messages larger than current view
 
