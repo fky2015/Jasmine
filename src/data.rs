@@ -464,8 +464,9 @@ impl BlockTree {
                 Some(pair) => pair.0.height,
                 None => {
                     self.debug_blocks();
-                    error!("block not found: block: {}", current,);
-                    panic!()
+                    warn!("block not found: block: {}, child: {}", current, child);
+                    return false;
+                    // panic!()
                 }
             };
             if current_height <= self.blocks.get(&parent).unwrap().0.height {
