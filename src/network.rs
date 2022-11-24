@@ -3,7 +3,7 @@ use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
-use tracing::{warn, info};
+use tracing::{error, info, warn};
 
 use crate::{consensus::NetworkPackage, crypto::PublicKey};
 use tokio::{
@@ -202,7 +202,10 @@ impl SimpleSender {
             .connections
             .entry(address)
             .or_insert_with(|| Self::spawn_connection(address));
-        connection.send(data).await.unwrap();
+        if (connection.send(data).await).is_err() {
+            error!("Failed to send message to {} failed.", address);
+            panic!()
+        }
     }
 }
 

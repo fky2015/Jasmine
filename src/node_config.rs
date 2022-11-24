@@ -45,7 +45,7 @@ impl Default for NodeSettings {
         Self {
             transaction_size: 512,
             batch_size: 1000,
-            mempool_size: 2000,
+            mempool_size: 10000,
             pretend_failure: false,
             leader_rotation: 10000,
             gc_depth: 1000,

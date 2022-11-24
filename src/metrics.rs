@@ -201,6 +201,8 @@ struct MetricsSample {
     // ms
     key_block_delay: f64,
     average_batch_size: f64,
+    // ms
+    block_delay: f64,
 }
 
 impl MetricsSample {
@@ -216,7 +218,9 @@ impl MetricsSample {
         let key_block_delay = m.key_delay as f64 / m.key_totals as f64;
 
         let average_batch_size = m.finalized_transactions as f64 / m.finalized_blocks as f64;
+        let block_delay = m.start_time.elapsed().as_millis() as f64 / m.finalized_blocks as f64;
         Self {
+            block_delay,
             e2e_delay,
             average_delay,
             finalized_transactions,
@@ -233,7 +237,7 @@ impl std::fmt::Display for MetricsSample {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "E2E delay: {:.2} ms, Average delay: {:.2} ms, Throughput: {:.3} Kops/sec, key:in-between: {:.2}:{:.2}, finalized_blocks: {}, average_batch_size: {:.2}, key_delay: {:.2}",
+            "E2E delay: {:.2} ms, Average delay: {:.2} ms, Throughput: {:.3} Kops/sec, key:in-between: {:.2}:{:.2}, finalized_blocks: {}, average_batch_size: {:.2}, key_delay: {:.2}, block_delay: {:.2}",
             self.e2e_delay,
             self.average_delay,
             self.consensus_throughput,
@@ -241,7 +245,8 @@ impl std::fmt::Display for MetricsSample {
             1.0 - self.key_block_ratio,
             self.finalized_blocks,
             self.average_batch_size,
-            self.key_block_delay
+            self.key_block_delay,
+            self.block_delay,
         )
     }
 }

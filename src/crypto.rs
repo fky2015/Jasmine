@@ -17,7 +17,7 @@ pub enum CryptoError {
     ParseError(#[from] ed25519_dalek::SignatureError),
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Clone, Copy, Deserialize, Default, Hash)]
+#[derive(PartialEq, Eq, Serialize, Clone, Copy, Deserialize, Default, Hash)]
 pub struct Digest([u8; 32]);
 
 impl Digest {
@@ -53,6 +53,12 @@ impl Digest {
 }
 
 impl Display for Digest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display())
+    }
+}
+
+impl std::fmt::Debug for Digest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.display())
     }

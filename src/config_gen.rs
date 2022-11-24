@@ -81,7 +81,7 @@ impl ExecutionPlan {
         trap_threads_line.push_str("' SIGINT SIGTERM\n");
         content.push_str(&trap_threads_line);
         content.push_str("wait $THREAD_0\n");
-        content.push_str("sleep 5\n");
+        content.push_str("sleep 2\n");
         content.push_str("pkill -P $$\n");
 
         let path = Path::new("run.sh");
@@ -174,7 +174,7 @@ impl DistributionPlan {
         base_config: NodeConfig,
     ) -> String {
         format!(
-            "{}-n{}-h{}-f{}-ts{}-bs{}-ir{}",
+            "{}-n{}-h{}-f{}-ts{}-bs{}-ir{}-lr{}",
             base_config.get_consensus_type(),
             number,
             hosts_len,
@@ -182,6 +182,7 @@ impl DistributionPlan {
             base_config.get_node_settings().transaction_size,
             base_config.get_node_settings().batch_size,
             base_config.get_client_config().injection_rate,
+            base_config.get_node_settings().leader_rotation,
         )
     }
 
