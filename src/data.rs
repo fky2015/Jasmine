@@ -395,8 +395,7 @@ impl BlockTree {
             current = self.get(current).unwrap().0.prev_hash;
         }
 
-        // TODO: config this value
-        if self.finalized_time.len() > 200 {
+        if self.finalized_time.len() > self.config.get_node_settings().gc_depth {
             // Start pruning
             let mut current = self.finalized;
             for _ in 0..3 {

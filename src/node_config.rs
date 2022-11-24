@@ -36,6 +36,8 @@ pub(crate) struct NodeSettings {
     pub(crate) pretend_failure: bool,
     /// Rotate leadership every `rotate_every` key blocks.
     pub(crate) leader_rotation: usize,
+    /// The number of blocks to keep in the ledger.
+    pub(crate) gc_depth: usize,
 }
 
 impl Default for NodeSettings {
@@ -46,6 +48,7 @@ impl Default for NodeSettings {
             mempool_size: 2000,
             pretend_failure: false,
             leader_rotation: 10000,
+            gc_depth: 1000,
         }
     }
 }
