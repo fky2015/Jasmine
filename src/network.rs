@@ -3,7 +3,7 @@ use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
-use tracing::warn;
+use tracing::{warn, info};
 
 use crate::{consensus::NetworkPackage, crypto::PublicKey};
 use tokio::{
@@ -79,9 +79,17 @@ pub struct FailureNetwork {
 }
 
 impl FailureNetwork {
-    pub fn spawn(addr: SocketAddr, _config: HashMap<PublicKey, SocketAddr>) -> NetworkAdaptor {
+    /// Create a new `FailureNetwork`.
+    ///
+    /// * `addr`: the local address to listen on.
+    /// * `_config`:
+    pub fn spawn(mut addr: SocketAddr, _config: HashMap<PublicKey, SocketAddr>) -> NetworkAdaptor {
         let (tx, rx) = mpsc::channel(1);
         let (sender_tx, sender_rx) = mpsc::channel(1);
+        if !addr.ip().is_loopback() {
+            // Set self bind address to 0.0.0.0.
+            addr.set_ip("0.0.0.0".parse().unwrap());
+        }
         tokio::spawn(async move { Self { sender_rx }.run().await });
         FailureReceiver::spawn(addr, tx);
 
@@ -114,9 +122,24 @@ pub struct TcpNetwork {
 }
 
 impl TcpNetwork {
-    pub fn spawn(addr: SocketAddr, config: HashMap<PublicKey, SocketAddr>) -> NetworkAdaptor {
+    pub fn spawn(
+        mut addr: SocketAddr,
+        mut config: HashMap<PublicKey, SocketAddr>,
+    ) -> NetworkAdaptor {
         let (tx, rx) = mpsc::channel(1);
         let (sender_tx, sender_rx) = mpsc::channel(1);
+        if !addr.ip().is_loopback() {
+            // Set self address to 0.0.0.0.
+            for v in config.values_mut() {
+                if v == &addr {
+                    info!("set self address to 0.0.0.0");
+                    v.set_ip("0.0.0.0".parse().unwrap());
+                }
+            }
+            // Set self bind address to 0.0.0.0.
+            addr.set_ip("0.0.0.0".parse().unwrap());
+        }
+
         tokio::spawn(async move {
             Self {
                 addrs: config.clone(),
@@ -181,13 +204,6 @@ impl SimpleSender {
             .or_insert_with(|| Self::spawn_connection(address));
         connection.send(data).await.unwrap();
     }
-
-    // Try to broadcast a message to all peers.
-    // pub async fn broadcast(&mut self, addresses: Vec<SocketAddr>, data: Bytes) {
-    //     for address in addresses {
-    //         self.send(address, data.clone()).await;
-    //     }
-    // }
 }
 
 struct Connection {

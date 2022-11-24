@@ -593,7 +593,7 @@ impl ConsensusVoter {
     }
 
     async fn run_as_pacemaker(self) {
-        let timeout = tokio::time::Duration::from_millis(1000);
+        let timeout = tokio::time::Duration::from_millis(2000);
         let tx = self.env.lock().network.get_sender();
         let id = self.config.get_id();
 
@@ -609,7 +609,7 @@ impl ConsensusVoter {
             if current_view != past_view {
                 continue;
             }
-            warn!("{} timeout!!!", id);
+            warn!("{} timeout!!! in view {}", id, current_view);
 
             // otherwise, try send a new-view message to nextleader
             let (next_leader, next_leader_view) = self.get_next_leader();
