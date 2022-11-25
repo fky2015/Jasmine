@@ -48,7 +48,7 @@ impl Default for NodeSettings {
             mempool_size: 5000,
             pretend_failure: false,
             leader_rotation: 100,
-            gc_depth: 1000,
+            gc_depth: 2000,
         }
     }
 }

@@ -11,8 +11,9 @@ In our implmentation, there are three timestamps for a single transaction.
 End-to-end performance is calculated via T1 and T3, and 
 Consensus performance is calculated via T2 and T3.
 
-We mainly focus on consensus performance here, since it reflects how consensus
-works.
+We mainly focus on e2e performance here, 
+and since consensus throughput is same as end-to-end throughput, we calculate the throughput
+in consensus instead.
 
 ## Quick Start
 
