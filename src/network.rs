@@ -10,9 +10,6 @@ use tokio::{
     net::{TcpListener, TcpStream},
     sync::mpsc::{self, channel, Receiver, Sender},
 };
-// pub trait NetworkDriver<In, Out> {
-//     fn handlers(&mut self, view: u32) -> (&mut In, &Out);
-// }
 
 pub struct MemoryNetwork {
     sender: HashMap<PublicKey, mpsc::Sender<NetworkPackage>>,
@@ -132,8 +129,8 @@ impl TcpNetwork {
             // Set self address to 0.0.0.0.
             for v in config.values_mut() {
                 if v.ip() == addr.ip() {
-                    info!("set self address to 0.0.0.0");
-                    v.set_ip("0.0.0.0".parse().unwrap());
+                    info!("set same hosts {} address to device lo", v);
+                    v.set_ip("localhost".parse().unwrap());
                 }
             }
             // Set self bind address to 0.0.0.0.
