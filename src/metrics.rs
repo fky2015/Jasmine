@@ -76,7 +76,7 @@ impl Metrics {
                         .get(0)
                         .unwrap()
                         .clone()
-                        .to_command()
+                        .into_command()
                         .created_time)
                     * block.payloads.len() as u64;
             }
@@ -101,7 +101,7 @@ impl Metrics {
                 self.next_sample_index += 1;
             }
 
-            self.try_exit();
+            self.try_exit().unwrap();
         }
     }
 

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::crypto::{hash, Digest, Keypair, PublicKey, Signature};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, trace};
 
 // use blake3::{hash, Hash};
 use crate::{client::FakeClient, mempool::Mempool, node_config::NodeConfig};
@@ -101,7 +101,7 @@ impl From<Vec<u8>> for Transaction {
 }
 
 impl Transaction {
-    pub fn to_command(self) -> Command {
+    pub fn into_command(self) -> Command {
         Command::deserialize(&self.payload)
     }
 }

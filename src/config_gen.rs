@@ -24,10 +24,6 @@ impl ConfigFile {
             (path, content)
         })
     }
-
-    fn export(&self, path: &Path) -> Result<()> {
-        self.config.export(path)
-    }
 }
 
 struct ExecutionPlan {

@@ -249,7 +249,11 @@ impl Voter {
             pacemaker.run_as_pacemaker().await;
         });
 
-        tokio::join!(handler1, handler2, handler3);
+        let (r1, r2, r3) = tokio::join!(handler1, handler2, handler3);
+        // TODO: handle error
+        r1.unwrap();
+        r2.unwrap();
+        r3.unwrap();
     }
 }
 

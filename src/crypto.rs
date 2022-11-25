@@ -39,16 +39,8 @@ impl Digest {
         s
     }
 
-    pub fn to_base64(self) -> String {
-        base64::encode(self.0)
-    }
-
     pub fn display(&self) -> String {
         self.to_hex().chars().take(8).collect::<String>()
-    }
-
-    pub fn genesis_digest() -> Digest {
-        Digest::new([0; 32])
     }
 }
 
@@ -266,6 +258,7 @@ pub struct Signature {
 }
 
 impl Signature {
+    #[allow(dead_code)]
     pub fn new(digest: &Digest, secret: &Keypair) -> Self {
         let keypair =
             ed25519_dalek::Keypair::from_bytes(&secret.0).expect("Unable to load secret key");
@@ -282,6 +275,7 @@ impl Signature {
             .expect("Unexpected signature length")
     }
 
+    #[allow(dead_code)]
     pub fn verify(&self, digest: &Digest, public_key: &PublicKey) -> Result<()> {
         let signature = ed25519_dalek::Signature::from_bytes(&self.flatten())?;
         let key = ed25519_dalek::PublicKey::from_bytes(&public_key.0)?;
@@ -289,6 +283,7 @@ impl Signature {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn verify_batch<'a, I>(digest: &Digest, votes: I) -> Result<()>
     where
         I: IntoIterator<Item = &'a (PublicKey, Signature)>,

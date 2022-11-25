@@ -44,12 +44,12 @@ impl MemoryNetwork {
             if msg.to.is_none() {
                 for sender in self.sender.values() {
                     let msg = msg.clone();
-                    sender.send(msg).await;
+                    sender.send(msg).await.unwrap();
                 }
             } else {
                 let to = msg.to.as_ref().unwrap();
                 if let Some(h) = self.sender.get(to) {
-                    h.send(msg).await;
+                    h.send(msg).await.unwrap();
                 }
             }
         }

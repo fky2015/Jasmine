@@ -301,6 +301,7 @@ impl NodeConfig {
         &self.consensus
     }
 
+    #[allow(dead_code)]
     pub fn get_test_mode(&self) -> &TestMode {
         &self.test_mode
     }
@@ -342,6 +343,7 @@ impl NodeConfig {
         Ok(serde_json::to_string_pretty(self)?)
     }
 
+    #[allow(dead_code)]
     pub fn export(&self, full_path: &Path) -> Result<()> {
         let mut file = File::create(full_path)?;
         let content = self.dry_run()?;
@@ -349,6 +351,7 @@ impl NodeConfig {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn disable_metrics(&mut self) {
         self.metrics.enabled = false;
     }
