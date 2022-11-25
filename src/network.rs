@@ -130,7 +130,7 @@ impl TcpNetwork {
             for v in config.values_mut() {
                 if v.ip() == addr.ip() {
                     info!("set same hosts {} address to device lo", v);
-                    v.set_ip("localhost".parse().unwrap());
+                    v.set_ip("127.0.0.1".parse().unwrap());
                 }
             }
             // Set self bind address to 0.0.0.0.
