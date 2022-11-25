@@ -47,6 +47,10 @@ pub(crate) struct Cli {
     #[arg(long)]
     pub(crate) leader_rotation: Option<usize>,
 
+    /// Maximum number of transactions in the mempool.
+    #[arg(long)]
+    pub(crate) mempool_size: Option<usize>,
+
     /// Export metrics to file when node exits.
     #[arg(short, long)]
     pub(crate) export_path: Option<PathBuf>,

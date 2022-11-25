@@ -43,9 +43,9 @@ pub(crate) struct NodeSettings {
 impl Default for NodeSettings {
     fn default() -> Self {
         Self {
-            transaction_size: 512,
+            transaction_size: 128,
             batch_size: 1000,
-            mempool_size: 50000,
+            mempool_size: 5000,
             pretend_failure: false,
             leader_rotation: 100,
             gc_depth: 1000,
@@ -160,13 +160,13 @@ impl Default for Metrics {
             enabled: true,
             stop_after: None,
             trace_finalization: false,
-            sampling_interval: 500,
+            sampling_interval: 250,
             export_path: None,
             stop_after_stable: true,
             stable_threshold: 1.0,
-            sampling_window: 20,
-            report_every_n_samples: Some(4),
-            stop_after_n_samples: Some(30),
+            sampling_window: 40,
+            report_every_n_samples: Some(8),
+            stop_after_n_samples: Some(100),
         }
     }
 }
@@ -230,6 +230,7 @@ impl NodeConfig {
             None => Ok(Default::default()),
         };
 
+        // Override the config with cli options.
         config.map(|mut cfg: NodeConfig| {
             if cli.disable_jasmine {
                 cfg.consensus = ConsensusType::HotStuff;
@@ -261,6 +262,10 @@ impl NodeConfig {
 
             if let Some(v) = cli.leader_rotation {
                 cfg.node_settings.leader_rotation = v;
+            }
+
+            if let Some(v) = cli.mempool_size {
+                cfg.node_settings.mempool_size = v;
             }
 
             cfg

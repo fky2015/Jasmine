@@ -463,8 +463,8 @@ impl BlockTree {
             let current_height = match self.blocks.get(&current) {
                 Some(pair) => pair.0.height,
                 None => {
-                    self.debug_blocks();
-                    warn!("block not found: block: {}, child: {}", current, child);
+                    // self.debug_blocks();
+                    trace!("block not found: block: {}, child: {}", current, child);
                     return false;
                     // panic!()
                 }

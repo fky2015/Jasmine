@@ -131,7 +131,7 @@ impl TcpNetwork {
         if !addr.ip().is_loopback() {
             // Set self address to 0.0.0.0.
             for v in config.values_mut() {
-                if v == &addr {
+                if v.ip() == addr.ip() {
                     info!("set self address to 0.0.0.0");
                     v.set_ip("0.0.0.0".parse().unwrap());
                 }
