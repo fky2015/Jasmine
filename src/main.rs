@@ -63,7 +63,8 @@ async fn main() -> Result<()> {
 
             // Boot up the network.
             let handle = tokio::spawn(async move {
-                network.dispatch().await;
+                network.dispatch().await?;
+                Ok::<_, anyhow::Error>(())
             });
 
             nodes.get(0).unwrap().metrics();
@@ -107,7 +108,8 @@ async fn main() -> Result<()> {
 
             // Boot up the network.
             let handle = tokio::spawn(async move {
-                network.dispatch().await;
+                network.dispatch().await?;
+                Ok::<_, anyhow::Error>(())
             });
 
             nodes.get(0).unwrap().metrics();

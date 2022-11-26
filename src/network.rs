@@ -1,4 +1,3 @@
-// TODO: use thiserror
 use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
@@ -10,6 +9,23 @@ use tokio::{
     net::{TcpListener, TcpStream},
     sync::mpsc::{self, channel, Receiver, Sender},
 };
+
+use anyhow::Result;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum NetworkError {
+    #[error("Failed to recv message: {0}")]
+    Recv(#[from] std::io::Error),
+    #[error("Failed to deserialize message: {0}")]
+    Deserialize(#[from] Box<bincode::ErrorKind>),
+    #[error("Failed to config TCP_NODELAY to true")]
+    TcpNoDelay(std::io::Error),
+    #[error("Faild to send message: {0} to {1}")]
+    Send(String, String),
+    #[error("Failed to send to mpsc: {0}")]
+    MpscSend(#[from] Box<mpsc::error::SendError<NetworkPackage>>),
+}
 
 pub struct MemoryNetwork {
     sender: HashMap<PublicKey, mpsc::Sender<NetworkPackage>>,
@@ -36,20 +52,25 @@ impl MemoryNetwork {
         }
     }
 
-    pub async fn dispatch(&mut self) {
+    pub async fn dispatch(&mut self) -> Result<()> {
         while let Some(msg) = self.receiver.recv().await {
             if msg.to.is_none() {
                 for sender in self.sender.values() {
                     let msg = msg.clone();
-                    sender.send(msg).await.unwrap();
+                    sender
+                        .send(msg)
+                        .await
+                        .map_err(|e| NetworkError::Send(e.to_string(), "All".to_string()))?;
                 }
             } else {
-                let to = msg.to.as_ref().unwrap();
+                let to = msg.to.as_ref().expect("to must be Some(_)");
                 if let Some(h) = self.sender.get(to) {
-                    h.send(msg).await.unwrap();
+                    h.send(msg).await?;
                 }
             }
         }
+
+        Ok(())
     }
 }
 
@@ -97,17 +118,7 @@ impl FailureNetwork {
     }
 
     async fn run(&mut self) {
-        while let Some(_pkg) = self.sender_rx.recv().await {
-            // let to = pkg.to;
-            // let pkg = bincode::serialize(&pkg).unwrap();
-            // if to.is_none() {
-            //     for addr in self.addrs.values() {
-            //         self.sender.send(*addr, pkg.clone().into()).await;
-            //     }
-            // } else if let some(addr) = self.addrs.get(&to.unwrap()) {
-            //     self.sender.send(*addr, pkg.into()).await;
-            // }
-        }
+        while let Some(_pkg) = self.sender_rx.recv().await {}
     }
 }
 
@@ -154,18 +165,19 @@ impl TcpNetwork {
         }
     }
 
-    async fn run(&mut self) {
+    async fn run(&mut self) -> Result<()> {
         while let Some(pkg) = self.sender_rx.recv().await {
             let to = pkg.to;
             let pkg = bincode::serialize(&pkg).unwrap();
             if to.is_none() {
                 for addr in self.addrs.values() {
-                    self.sender.send(*addr, pkg.clone().into()).await;
+                    self.sender.send(*addr, pkg.clone().into()).await?;
                 }
             } else if let Some(addr) = self.addrs.get(&to.unwrap()) {
-                self.sender.send(*addr, pkg.into()).await;
+                self.sender.send(*addr, pkg.into()).await?;
             }
         }
+        Ok(())
     }
 }
 
@@ -194,15 +206,14 @@ impl SimpleSender {
     }
 
     /// Try to send a message to a peer.
-    pub async fn send(&mut self, address: SocketAddr, data: Bytes) {
+    pub async fn send(&mut self, address: SocketAddr, data: Bytes) -> Result<()> {
         let connection = self
             .connections
             .entry(address)
             .or_insert_with(|| Self::spawn_connection(address));
-        if (connection.send(data).await).is_err() {
-            error!("Failed to send message to {} failed.", address);
-            panic!()
-        }
+        connection.send(data).await?;
+
+        Ok(())
     }
 }
 
@@ -214,17 +225,19 @@ struct Connection {
 impl Connection {
     fn spawn(address: SocketAddr, receiver: Receiver<Bytes>) {
         tokio::spawn(async move {
-            Self { address, receiver }.run().await;
+            Self { address, receiver }.run().await?;
+
+            Ok::<(), anyhow::Error>(())
         });
     }
 
-    async fn run(&mut self) {
+    async fn run(&mut self) -> Result<()> {
         // Try to connect to the peer
         let (mut writer, mut reader) = loop {
             match TcpStream::connect(self.address).await {
                 Ok(stream) => {
                     // Turn on TCP_NODELAY to eliminate latency.
-                    stream.set_nodelay(true).unwrap();
+                    stream.set_nodelay(true).map_err(NetworkError::TcpNoDelay)?;
                     break Framed::new(stream, LengthDelimitedCodec::new()).split();
                 }
                 Err(e) => {
@@ -237,27 +250,12 @@ impl Connection {
         loop {
             tokio::select! {
                 Some(bytes) = self.receiver.recv() => {
-                    if let Err(e) = writer.send(bytes).await {
-                        eprintln!("failed to send message to {}: {}", self.address, e);
-                        return;
-                    }
-
-                    tracing::trace!("sent to {}", self.address);
+                    writer.send(bytes).await?;
                 }
 
 
                 Some(result) = reader.next() => {
-                    match result {
-                        Ok(_bytes) => {
-                            unreachable!()
-                            // let msg = Message::decode(&bytes);
-                            // println!("Received message from {}: {:?}", self.address, msg);
-                        }
-                        Err(e) => {
-                            eprintln!("failed to receive message from {}: {}", self.address, e);
-                            return;
-                        }
-                    }
+                    result.map_err(NetworkError::Recv)?;
                 }
             }
         }
@@ -342,26 +340,18 @@ impl SimpleReceiver {
         }
     }
 
-    async fn spawn_runner(socket: TcpStream, peer: SocketAddr, sender: Sender<NetworkPackage>) {
+    async fn spawn_runner(socket: TcpStream, _peer: SocketAddr, sender: Sender<NetworkPackage>) {
         tokio::spawn(async move {
             let (mut _writer, mut reader) =
                 Framed::new(socket, LengthDelimitedCodec::new()).split();
             while let Some(result) = reader.next().await {
-                match result {
-                    Ok(bytes) => match bincode::deserialize::<NetworkPackage>(&bytes) {
-                        Ok(msg) => {
-                            sender.send(msg).await.unwrap();
-                        }
-                        Err(e) => {
-                            eprintln!("failed to deserialize message from {}: {}", peer, e);
-                        }
-                    },
-                    Err(e) => {
-                        eprintln!("failed to receive message from {}: {}", peer, e);
-                        return;
-                    }
-                }
+                let bytes = result.map_err(NetworkError::Recv)?;
+                let msg = bincode::deserialize::<NetworkPackage>(&bytes)
+                    .map_err(NetworkError::Deserialize)?;
+                sender.send(msg).await?;
             }
+
+            Ok::<(), anyhow::Error>(())
         });
     }
 }
