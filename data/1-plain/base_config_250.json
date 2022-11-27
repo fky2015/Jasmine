@@ -9,7 +9,8 @@
     "mempool_size": 1250,
     "pretend_failure": false,
     "leader_rotation": 100,
-    "gc_depth": 2000
+    "gc_depth": 2000,
+    "timeout": 5000
   },
   "consensus": {
     "Jasmine": {

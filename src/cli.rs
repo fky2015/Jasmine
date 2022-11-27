@@ -50,6 +50,10 @@ pub(crate) struct Cli {
     /// Maximum number of transactions in the mempool.
     #[arg(long)]
     pub(crate) mempool_size: Option<usize>,
+    
+    /// Pacemaker timeout.
+    #[arg(long)]
+    pub(crate) timeout: Option<usize>,
 
     /// Export metrics to file when node exits.
     #[arg(short, long)]

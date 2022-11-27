@@ -38,6 +38,8 @@ pub(crate) struct NodeSettings {
     pub(crate) leader_rotation: usize,
     /// The number of blocks to keep in the ledger.
     pub(crate) gc_depth: usize,
+    /// Pacemaker timeout
+    pub(crate) timeout: usize,
 }
 
 impl Default for NodeSettings {
@@ -49,6 +51,7 @@ impl Default for NodeSettings {
             pretend_failure: false,
             leader_rotation: 100,
             gc_depth: 2000,
+            timeout: 5000,
         }
     }
 }
@@ -266,6 +269,10 @@ impl NodeConfig {
 
             if let Some(v) = cli.mempool_size {
                 cfg.node_settings.mempool_size = v;
+            }
+
+            if let Some(v) = cli.timeout {
+                cfg.node_settings.timeout = v
             }
 
             cfg

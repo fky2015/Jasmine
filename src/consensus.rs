@@ -680,7 +680,8 @@ impl ConsensusVoter {
     }
 
     async fn run_as_pacemaker(self) {
-        let timeout = tokio::time::Duration::from_millis(2000);
+        let timeout =
+            tokio::time::Duration::from_millis(self.config.get_node_settings().timeout as u64);
         let tx = self.env.lock().network.get_sender();
         let id = self.config.get_id();
 
