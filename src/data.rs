@@ -24,18 +24,20 @@ pub struct Command {
 
 impl Command {
     pub(crate) fn serialize(&self, size: usize) -> Vec<u8> {
-        let serialized = serde_json::to_string(self).unwrap();
+        let data = bincode::serialize(&self).unwrap();
+
         let mut bytes = Vec::with_capacity(size);
-        bytes.extend_from_slice(serialized.as_bytes());
+        bytes.push(data.len() as u8);
+        bytes.extend(data);
+        bytes.extend(vec![0; size - bytes.len()]);
+
         bytes
     }
 
     fn deserialize(bytes: &[u8]) -> Self {
-        let serialized = String::from_utf8(bytes.to_vec())
-            .unwrap()
-            .trim_end_matches(char::from(0))
-            .to_string();
-        serde_json::from_str(&serialized).unwrap()
+        let size = bytes[0] as usize;
+        let data = &bytes[1..size + 1];
+        bincode::deserialize(data).unwrap()
     }
 }
 
@@ -656,8 +658,23 @@ mod test {
             let serialized = command.serialize(256);
 
             let deserialized = Command::deserialize(&serialized);
+            assert_eq!(serialized.len(), 256);
             assert_eq!(command, deserialized);
             assert_eq!(serialized.capacity(), 256);
         }
+    }
+
+    #[test]
+    fn different_sized_tx() {
+        let command = Command {
+            //max
+            id: usize::MAX,
+            created_time: u64::MAX,
+            command_type: CommandType::Add(usize::MAX, i64::MAX),
+        };
+        assert_eq!(command.serialize(128).len(), 128);
+        assert_eq!(command.serialize(256).len(), 256);
+        assert_eq!(command.serialize(512).len(), 512);
+        assert_eq!(command.serialize(1024).len(), 1024);
     }
 }
