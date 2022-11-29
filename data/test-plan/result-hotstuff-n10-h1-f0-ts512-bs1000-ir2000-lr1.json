@@ -1,0 +1,60 @@
+{
+  "input": {
+    "id": "F9PY+eFIbFgeqjmgK7BUGRQKd4rm/aUuFzbJKjkJsBI=",
+    "private_key": "wsExnWISdxoFH0lWXnA4qtcXFhEmEWbZGnwe8YcoVcEX09j54UhsWB6qOaArsFQZFAp3iub9pS4XNskqOQmwEg==",
+    "peer_addrs": {
+      "F9PY+eFIbFgeqjmgK7BUGRQKd4rm/aUuFzbJKjkJsBI=": "[::1]:8123",
+      "GI+/+GMkwzlN3cZ4kqcYJ4pJ/CJrcOp0YqnKF0vuVfY=": "[::1]:8124",
+      "HqwcxRpWcs41R95E2SwWMCY/3q/r9eWLUC9TAog029c=": "[::1]:8125",
+      "TYbNE9LyBbDH1YnDi5Io8qYFPQgWVYjIicLkIbj+4NQ=": "[::1]:8126",
+      "bfsLK+lUkBfU7bxe/6curobNCLfEgYtd0RIvwj4NNFg=": "[::1]:8127",
+      "oybRB9lwiS5dC2l2m7Zeiqeba6BCVUhCJUYV3SXoDFo=": "[::1]:8128",
+      "qPw8B7B8nLDbNHRmJE/tN/c30713wZWg6w8VZVh2MoU=": "[::1]:8129",
+      "xv661UGhDS9V4LLxVxw5CCVGtvCrURHkMw+9UeCde9g=": "[::1]:8130",
+      "6V7HfCbI5LJK3P+0Sxzk84P3+JJZ8FwwSbgHZ8aUoZA=": "[::1]:8131",
+      "/u4ADoWN5wrn3kQmZj64CgU9tKFi9n8N0xdZB/LuFqc=": "[::1]:8132"
+    },
+    "node_settings": {
+      "transaction_size": 512,
+      "batch_size": 1000,
+      "mempool_size": 50000,
+      "pretend_failure": false,
+      "leader_rotation": 1,
+      "gc_depth": 1000
+    },
+    "consensus": "HotStuff",
+    "test_mode": {
+      "delay_test": false,
+      "memory_test": false,
+      "fault_tolerance_test": false
+    },
+    "logs": {},
+    "metrics": {
+      "enabled": true,
+      "stop_after": null,
+      "trace_finalization": false,
+      "sampling_interval": 500,
+      "export_path": "result-hotstuff-n10-h1-f0-ts512-bs1000-ir2000-lr1.json",
+      "sampling_window": 20,
+      "stop_after_stable": true,
+      "stable_threshold": 1.0,
+      "report_every_n_samples": 4,
+      "stop_after_n_samples": 30
+    },
+    "client": {
+      "use_instant_generator": false,
+      "injection_rate": 2000
+    }
+  },
+  "output": {
+    "e2e_delay": 5.1023,
+    "average_delay": 2.01575,
+    "finalized_transactions": 200000,
+    "consensus_throughput": 20.0,
+    "key_block_ratio": 1.0,
+    "finalized_blocks": 17840,
+    "key_block_delay": 2.01575,
+    "average_batch_size": 11.210762331838565,
+    "block_delay": 0.5605381165919282
+  }
+}

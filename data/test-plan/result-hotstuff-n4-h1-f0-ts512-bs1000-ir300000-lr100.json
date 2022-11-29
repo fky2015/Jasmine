@@ -1,0 +1,54 @@
+{
+  "input": {
+    "id": "RwUMyvXOCV7nOWgcjUUQhOSpouqyoYCuropZKssElDo=",
+    "private_key": "SJevi+6PuoRYEVBjxAZci5thocrTGj1iHzPagM3m9StHBQzK9c4JXuc5aByNRRCE5Kmi6rKhgK6uilkqywSUOg==",
+    "peer_addrs": {
+      "RwUMyvXOCV7nOWgcjUUQhOSpouqyoYCuropZKssElDo=": "[::1]:8123",
+      "nbYtdDzScUIo4vidgLne452JE6beUIiDgxEJafuXL2s=": "[::1]:8124",
+      "xOz3MmSdPZTs75fsADJm1cpfP1ylP8GBawi1g3vaRJ8=": "[::1]:8125",
+      "x1xc6UikWxxZVezXzJAH5rNlRiiOIgUTyCCEhWZ6vhw=": "[::1]:8126"
+    },
+    "node_settings": {
+      "transaction_size": 512,
+      "batch_size": 1000,
+      "mempool_size": 50000,
+      "pretend_failure": false,
+      "leader_rotation": 100,
+      "gc_depth": 1000
+    },
+    "consensus": "HotStuff",
+    "test_mode": {
+      "delay_test": false,
+      "memory_test": false,
+      "fault_tolerance_test": false
+    },
+    "logs": {},
+    "metrics": {
+      "enabled": true,
+      "stop_after": null,
+      "trace_finalization": false,
+      "sampling_interval": 500,
+      "export_path": "result-hotstuff-n4-h1-f0-ts512-bs1000-ir300000-lr100.json",
+      "sampling_window": 20,
+      "stop_after_stable": true,
+      "stable_threshold": 1.0,
+      "report_every_n_samples": 4,
+      "stop_after_n_samples": 30
+    },
+    "client": {
+      "use_instant_generator": false,
+      "injection_rate": 300000
+    }
+  },
+  "output": {
+    "e2e_delay": 201.83825215832115,
+    "average_delay": 3.526963873024306,
+    "finalized_transactions": 15058000,
+    "consensus_throughput": 1003.8666666666667,
+    "key_block_ratio": 1.0,
+    "finalized_blocks": 15235,
+    "key_block_delay": 3.526963873024306,
+    "average_batch_size": 988.3820150968165,
+    "block_delay": 0.9845749917952084
+  }
+}

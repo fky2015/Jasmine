@@ -1,0 +1,37 @@
+{
+  "id": "61Xem4oS5+R6vRJqV0RBk/bLrKYbGfmfAbIhTJ84mfI=",
+  "private_key": "5a6MuNnREif+ZTIB5YO+919R+Bp+n7nLI6iGU4Mo0mXrVd6bihLn5Hq9EmpXREGT9susphsZ+Z8BsiFMnziZ8g==",
+  "peer_addrs": {
+  },
+  "node_settings": {
+    "transaction_size": 512,
+    "batch_size": 1000,
+    "mempool_size": 2000,
+    "pretend_failure": false,
+    "leader_rotation": 100,
+    "gc_depth": 1000
+  },
+  "consensus": "HotStuff",
+  "test_mode": {
+    "delay_test": false,
+    "memory_test": false,
+    "fault_tolerance_test": false
+  },
+  "logs": {},
+  "metrics": {
+    "enabled": true,
+    "stop_after": null,
+    "trace_finalization": false,
+    "sampling_interval": 500,
+    "export_path": null,
+    "sampling_window": 20,
+    "stop_after_stable": true,
+    "stable_threshold": 1.0,
+    "report_every_n_samples": 4,
+    "stop_after_n_samples": 30
+  },
+  "client": {
+    "use_instant_generator": false,
+    "injection_rate": 1000
+  }
+}

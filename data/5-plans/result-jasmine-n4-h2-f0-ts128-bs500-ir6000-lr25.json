@@ -1,0 +1,59 @@
+{
+  "input": {
+    "id": "UJQ5mS1dSfxGL/TBGL1g9+U8ntIQDkL9LPblBMZaaA0=",
+    "private_key": "qhPXIC2NHDdlQDnOLBf+z9lai5joIUYo+7zxDn8NIERQlDmZLV1J/EYv9MEYvWD35Tye0hAOQv0s9uUExlpoDQ==",
+    "peer_addrs": {
+      "UJQ5mS1dSfxGL/TBGL1g9+U8ntIQDkL9LPblBMZaaA0=": "47.89.188.82:8123",
+      "VjwIt9a51R5lUVenOS5hkNe6RwSCEP8fm6pHfb4g3K8=": "47.74.86.251:8124",
+      "iE1pkFGcpFnk2ri0KrsPKJY7kROIQC9dVq0cmdkZ2UU=": "47.89.188.82:8125",
+      "vsnvr8ddbprremMQ+fVhyLy92vGKvDpfZ5R5Yb5VOaE=": "47.74.86.251:8126"
+    },
+    "node_settings": {
+      "transaction_size": 128,
+      "batch_size": 500,
+      "mempool_size": 5000,
+      "pretend_failure": false,
+      "leader_rotation": 25,
+      "gc_depth": 2000,
+      "timeout": 5000
+    },
+    "consensus": {
+      "Jasmine": {
+        "minimal_batch_size_ratio": 0.8
+      }
+    },
+    "test_mode": {
+      "delay_test": false,
+      "memory_test": false,
+      "fault_tolerance_test": false
+    },
+    "logs": {},
+    "metrics": {
+      "enabled": true,
+      "stop_after": null,
+      "trace_finalization": false,
+      "sampling_interval": 250,
+      "export_path": "result-jasmine-n4-h2-f0-ts128-bs500-ir6000-lr25.json",
+      "sampling_window": 40,
+      "stop_after_stable": true,
+      "stable_threshold": 1.0,
+      "report_every_n_samples": 8,
+      "stop_after_n_samples": 300
+    },
+    "client": {
+      "use_instant_generator": false,
+      "injection_rate": 6000
+    }
+  },
+  "output": {
+    "e2e_delay": 3309.009836366201,
+    "average_delay": 2535.11365354775,
+    "finalized_transactions": 1417800,
+    "consensus_throughput": 18.896945140480888,
+    "key_block_ratio": 0.05089911612313319,
+    "finalized_blocks": 3281,
+    "key_block_delay": 1698.2798074317989,
+    "average_batch_size": 432.1243523316062,
+    "block_delay": 22.867418469978666
+  }
+}

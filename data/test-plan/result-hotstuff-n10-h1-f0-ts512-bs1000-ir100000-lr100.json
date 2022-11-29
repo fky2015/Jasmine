@@ -1,0 +1,60 @@
+{
+  "input": {
+    "id": "JT9osmWgw3hLCG+PeIklGwfIwUl9/eZOaWL9Za+a+tU=",
+    "private_key": "wZCS0A9mQJgvnQ9EgLEIjfVyw0odayRKwtSZwETUmn0lP2iyZaDDeEsIb494iSUbB8jBSX395k5pYv1lr5r61Q==",
+    "peer_addrs": {
+      "JT9osmWgw3hLCG+PeIklGwfIwUl9/eZOaWL9Za+a+tU=": "[::1]:8123",
+      "TWGtMCN5Rn+00WahcW35QeXTzoHu1keaKYEPNxJHeNM=": "[::1]:8124",
+      "Y2wJakhaGXmcBS3eUrDHoZ97MMerPe7vnJ8ZsA0/Aig=": "[::1]:8125",
+      "cKWdEJX8wdf4b+bOW0+9s3/uqSgwo/HZHxNHY49pQXk=": "[::1]:8126",
+      "esE05riSKuLbmb4tleWLu/uTc4VkdDfsw4TiwP5mVLg=": "[::1]:8127",
+      "lATO1Zc4Y30kkfbyWioMK/YdNkz0++PjMhrAeNNVgRs=": "[::1]:8128",
+      "o0rfWvKlYOCT4CoGXoajuNh4yKO98t9XWv3JjV0uYYM=": "[::1]:8129",
+      "tFtRCSTK2cySRLdFKGxgh1jgrAfq+m5SpBwMVrdiGl0=": "[::1]:8130",
+      "t6jBWuZXvS1iFJ/bAqwlZqYnXxmy/esQbX6Qkt5HroY=": "[::1]:8131",
+      "1uPXs7HSbIIB5wD4Z29aPqmX5tu2q6p9buJQnkL0WLs=": "[::1]:8132"
+    },
+    "node_settings": {
+      "transaction_size": 512,
+      "batch_size": 1000,
+      "mempool_size": 50000,
+      "pretend_failure": false,
+      "leader_rotation": 100,
+      "gc_depth": 1000
+    },
+    "consensus": "HotStuff",
+    "test_mode": {
+      "delay_test": false,
+      "memory_test": false,
+      "fault_tolerance_test": false
+    },
+    "logs": {},
+    "metrics": {
+      "enabled": true,
+      "stop_after": null,
+      "trace_finalization": false,
+      "sampling_interval": 500,
+      "export_path": "result-hotstuff-n10-h1-f0-ts512-bs1000-ir100000-lr100.json",
+      "sampling_window": 20,
+      "stop_after_stable": true,
+      "stable_threshold": 1.0,
+      "report_every_n_samples": 4,
+      "stop_after_n_samples": 30
+    },
+    "client": {
+      "use_instant_generator": false,
+      "injection_rate": 100000
+    }
+  },
+  "output": {
+    "e2e_delay": 841.2930180404909,
+    "average_delay": 6.529378908764052,
+    "finalized_transactions": 8348387,
+    "consensus_throughput": 556.5591333333333,
+    "key_block_ratio": 1.0,
+    "finalized_blocks": 8906,
+    "key_block_delay": 6.529378908764052,
+    "average_batch_size": 937.3890635526611,
+    "block_delay": 1.684257803727824
+  }
+}
