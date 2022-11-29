@@ -46,12 +46,12 @@ impl Default for NodeSettings {
     fn default() -> Self {
         Self {
             transaction_size: 128,
-            batch_size: 1000,
+            batch_size: 500,
             mempool_size: 5000,
             pretend_failure: false,
-            leader_rotation: 100,
+            leader_rotation: 5,
             gc_depth: 2000,
-            timeout: 5000,
+            timeout: 2500,
         }
     }
 }
@@ -169,7 +169,7 @@ impl Default for Metrics {
             stable_threshold: 1.0,
             sampling_window: 40,
             report_every_n_samples: Some(8),
-            stop_after_n_samples: Some(100),
+            stop_after_n_samples: Some(400),
         }
     }
 }

@@ -29,7 +29,9 @@ pub(crate) enum Message {
     Propose(Block),
     ProposeInBetween(Block),
     Vote(Digest, PublicKey, Signature),
-    NewView(QC),
+    // Contain the last vote of the sender, so that
+    // it can tolerate more failures.
+    NewView(QC, Digest, PublicKey, Signature),
 }
 
 impl Message {}
@@ -532,8 +534,18 @@ impl ConsensusVoter {
                     self.state.lock().set_best_view(view);
                 }
             }
-            Message::NewView(high_qc) => {
+            Message::NewView(high_qc, digest, author, signature) => {
                 self.update_qc_high(high_qc);
+
+                author.verify(&digest, &signature).unwrap();
+
+                let qc = self.state.lock().add_vote(view, digest, from);
+
+                if let Some(qc) = qc {
+                    self.update_qc_high(qc);
+                    self.state.lock().set_best_view(view);
+                }
+
                 self.state.lock().add_new_view(view, from);
             }
         }
@@ -685,9 +697,11 @@ impl ConsensusVoter {
         let tx = self.env.lock().network.get_sender();
         let id = self.config.get_id();
 
+        let mut multiplexer = 1;
+
         loop {
             let past_view = self.state.lock().view;
-            let next_awake = tokio::time::Instant::now() + timeout;
+            let next_awake = tokio::time::Instant::now() + timeout.mul_f64(multiplexer as f64);
             trace!("{}: pacemaker start", id);
             tokio::time::sleep_until(next_awake).await;
             trace!("{}: pacemaker awake", id);
@@ -695,6 +709,7 @@ impl ConsensusVoter {
             // If last vote is received later then 1s ago, then continue to sleep.
             let current_view = self.state.lock().view;
             if current_view != past_view {
+                multiplexer = 1;
                 continue;
             }
 
@@ -712,11 +727,17 @@ impl ConsensusVoter {
             tx.send(pkg).await.unwrap();
 
             self.state.lock().view = next_leader_view;
+            multiplexer += 1;
         }
     }
 
     fn new_new_view(&self, view: u64, next_leader: PublicKey) -> NetworkPackage {
-        let new_view = Message::NewView(self.state.lock().generic_qc.clone());
+        // latest Vote
+        let digest = self.env.lock().block_tree.latest;
+        let id = self.config.get_id();
+        let signature = self.config.get_private_key().sign(&digest);
+        let new_view =
+            Message::NewView(self.state.lock().generic_qc.clone(), digest, id, signature);
         Self::package_message(self.state.lock().id, new_view, view, Some(next_leader))
     }
 

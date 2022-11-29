@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::crypto::{hash, Digest, Keypair, PublicKey, Signature};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, trace};
+use tracing::{debug, error, trace, warn};
 
 // use blake3::{hash, Hash};
 use crate::{client::FakeClient, mempool::Mempool, node_config::NodeConfig};
@@ -415,6 +415,14 @@ impl BlockTree {
     }
 
     pub(crate) fn add_block(&mut self, block: Block, block_type: BlockType) {
+        // if block.height < self.blocks.get(&self.latest).unwrap().0.height {
+        //     self.debug_blocks();
+        //     warn!(
+        //         "Block height is too low, {}, prev: {:?}",
+        //         block.height,
+        //         self.blocks.get(&block.prev_hash)
+        //     );
+        // }
         if block_type == BlockType::Key {
             // Add it to self.parent_key_block
             let mut parent = match self.blocks.get(&block.prev_hash) {
