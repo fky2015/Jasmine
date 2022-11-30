@@ -205,6 +205,7 @@ impl DistributionPlan {
         ret.push((Path::new("get-results.sh").to_path_buf(), content));
 
         let mut content: String = "#!/bin/bash\nset -x\n".to_string();
+        content.push_str("bash kill-all.sh\n");
         content.push_str("bash distribute.sh\n");
         content.push_str("bash run-remotes.sh\n");
         content.push_str("bash get-results.sh\n");
@@ -222,6 +223,13 @@ impl DistributionPlan {
         content.push_str("rm run-all.sh\n");
 
         ret.push((Path::new("clean-all.sh").to_path_buf(), content));
+
+        let mut content: String = "#!/bin/bash\n".to_string();
+        for host in hosts {
+            content.push_str(&format!("ssh {} 'rm ./*.json' &\n", host));
+            content.push_str(&format!("ssh {} 'killall jasmine' &\n", host));
+        }
+        ret.push((Path::new("kill-all.sh").to_path_buf(), content));
 
         Ok(ret)
     }

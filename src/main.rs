@@ -5,7 +5,7 @@ use crate::config_gen::DistributionPlan;
 use std::{
     fs::{self, File},
     io::Write,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use clap::Parser;
@@ -124,10 +124,26 @@ async fn main() -> Result<()> {
         Some(Commands::ConfigGen {
             number,
             mut hosts,
-            export_dir,
+            mut export_dir,
             write_file,
             failure_nodes,
+            auto_naming,
         }) => {
+            if !auto_naming && export_dir.is_none() {
+                panic!("export_dir must be specified when auto_naming is false");
+            } else if auto_naming && export_dir.is_none() {
+                let mut i = 0;
+                while Path::new(&format!("config_{}", i)).exists() {
+                    i += 1;
+                }
+
+                let name = format!("config_{}", i);
+
+                export_dir = Some(PathBuf::from(name));
+            }
+
+            let export_dir = export_dir.expect("export_dir must be specified");
+
             // println!("Generating config {:?}", cfg);
             if hosts.is_empty() {
                 println!("No hosts provided, use localhost instead.");

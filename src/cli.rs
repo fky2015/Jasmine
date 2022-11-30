@@ -50,7 +50,7 @@ pub(crate) struct Cli {
     /// Maximum number of transactions in the mempool.
     #[arg(long)]
     pub(crate) mempool_size: Option<usize>,
-    
+
     /// Pacemaker timeout.
     #[arg(long)]
     pub(crate) timeout: Option<usize>,
@@ -94,7 +94,11 @@ pub(crate) enum Commands {
 
         /// Path to export configs.
         #[arg(short, long, value_name = "DIR")]
-        export_dir: PathBuf,
+        export_dir: Option<PathBuf>,
+
+        /// automatically export configs to a new directory.
+        #[arg(short, long)]
+        auto_naming: bool,
 
         /// Write all the configs and scripts to file.
         #[arg(short, long)]
