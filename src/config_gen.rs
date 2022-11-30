@@ -8,6 +8,7 @@ use std::{
 use crate::{crypto::generate_keypairs, node_config::NodeConfig};
 use anyhow::Result;
 
+/// Represent a single config file.
 struct ConfigFile {
     config: NodeConfig,
 }
@@ -26,6 +27,7 @@ impl ConfigFile {
     }
 }
 
+/// Represent a bundle of config files which are executed in a single server.
 struct ExecutionPlan {
     // Vec<(path to config file)>
     configs: Vec<ConfigFile>,
@@ -194,7 +196,7 @@ impl DistributionPlan {
         let mut content: String = "#!/bin/bash\n".to_string();
 
         let first_host = hosts.get(0).expect("Hosts cannot be empty.");
-        // TODO: Better result file name.
+
         content.push_str(&format!(
             "while ! scp {}:result-{}.json result-{}.json 2>/dev/null; do sleep 5; done\n",
             first_host, self.result_label, self.result_label
@@ -214,8 +216,10 @@ impl DistributionPlan {
         for host in hosts {
             content.push_str(&format!("ssh {} 'rm ./*.json' &\n", host));
             content.push_str(&format!("ssh {} 'killall jasmine' &\n", host));
-            content.push_str(&format!("rm {}/*.json\n", host));
+            content.push_str(&format!("rm -r {}\n", host));
         }
+
+        content.push_str("rm run-all.sh\n");
 
         ret.push((Path::new("clean-all.sh").to_path_buf(), content));
 

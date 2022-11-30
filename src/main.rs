@@ -142,7 +142,7 @@ async fn main() -> Result<()> {
                     println!("{}", content);
                 }
             } else if !Path::new(&export_dir).is_dir() {
-                panic!("Export dir is not a directory");
+                fs::create_dir_all(&export_dir)?;
             } else {
                 for (path, content) in distribution_plan.dry_run(&export_dir)? {
                     let dir = path.parent().unwrap();
