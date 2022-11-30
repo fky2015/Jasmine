@@ -4,10 +4,10 @@
   "peer_addrs": {},
   "node_settings": {
     "transaction_size": 128,
-    "batch_size": 500,
+    "batch_size": 250,
     "mempool_size": 5000,
     "pretend_failure": false,
-    "leader_rotation": 10,
+    "leader_rotation": 5,
     "gc_depth": 4000,
     "timeout": 1500
   },
@@ -32,7 +32,7 @@
     "stop_after_stable": true,
     "stable_threshold": 1,
     "report_every_n_samples": 8,
-    "stop_after_n_samples": 400
+    "stop_after_n_samples": 300
   },
   "client": {
     "use_instant_generator": false,
