@@ -141,9 +141,11 @@ async fn main() -> Result<()> {
                     println!("{}", path.display());
                     println!("{}", content);
                 }
-            } else if !Path::new(&export_dir).is_dir() {
-                fs::create_dir_all(&export_dir)?;
             } else {
+                if !Path::new(&export_dir).is_dir() {
+                    fs::create_dir_all(&export_dir)?;
+                }
+
                 for (path, content) in distribution_plan.dry_run(&export_dir)? {
                     let dir = path.parent().unwrap();
                     if !dir.exists() {
