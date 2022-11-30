@@ -1,0 +1,71 @@
+{
+  "input": {
+    "id": "ADn1XeIu489Fcx3Gu6btUrTLvUVYZd2Js8OBtWWZ56U=",
+    "private_key": "Ix+axkdSCIXIQSCUYD2XtqEHuo3J6At7seHo6d4AbwkAOfVd4i7jz0VzHca7pu1StMu9RVhl3Ymzw4G1ZZnnpQ==",
+    "peer_addrs": {
+      "ADn1XeIu489Fcx3Gu6btUrTLvUVYZd2Js8OBtWWZ56U=": "47.89.188.82:8123",
+      "AwqLH3onaEB3eOElVLmK6YErhImyk8ZCN7P2pyR/5Rk=": "47.74.86.251:8124",
+      "DesFAoQHiSKTnlC7YHqS6YksGacSJ0YMYejAWNN76xg=": "47.89.188.82:8125",
+      "I1aQo+5uJgb31nnh6w1uZpfmKPiZ7fIimhCB6rAIifc=": "47.74.86.251:8126",
+      "Phl2l612q3Vmxrh5386MTKarJYhcGyghiJg8oe3karI=": "47.89.188.82:8127",
+      "P5MGqLNvCLXU3rPcKDgrkBNuSDAn7SPxwzq+mqUxM5U=": "47.74.86.251:8128",
+      "VXrTUN+AM/szU9o0pu/+iWQ9qsEHSCe8S22qGbbyTU0=": "47.89.188.82:8129",
+      "ZOVpfJ/x81E/w+AczQhj4+dD94KqhizQKRn8ZBa6uaA=": "47.74.86.251:8130",
+      "ZaLCAPaLiPA4/8LB6AeQ27deG1wbWij1tUQe8VBEnoI=": "47.89.188.82:8131",
+      "ZccGfn1EkxFju41Dkc9Hn+dUlYupYK+OCQ2nA0j62vc=": "47.74.86.251:8132",
+      "dZM2gIEc6mwbCTFn5UnG26rMQkFkJwuCtzQHgSTcDlY=": "47.89.188.82:8133",
+      "ea9VMRPvNCIrSxBdRcwFYWx6V3ByGAJ5tW1pLAriRjQ=": "47.74.86.251:8134",
+      "r6BRtKuvVc2D/GTMed+xE2Igdo76m2L38U+DJmtNmFk=": "47.89.188.82:8135",
+      "yg3Sb1Jyv0NsrJRn7UIEG56c+6UVE3yb3AnkpTTusz4=": "47.74.86.251:8136",
+      "8uIJ4HwAAHnRSbV1OftbUTpxYGJvjPpiRz9Avik2MfA=": "47.89.188.82:8137",
+      "+ko9pZejFxp9rmtkUFIHoUk51R5xnxWF49hIy/2R0KY=": "47.74.86.251:8138"
+    },
+    "node_settings": {
+      "transaction_size": 128,
+      "batch_size": 500,
+      "mempool_size": 5000,
+      "pretend_failure": false,
+      "leader_rotation": 10,
+      "gc_depth": 4000,
+      "timeout": 7000
+    },
+    "consensus": {
+      "Jasmine": {
+        "minimal_batch_size_ratio": 0.8
+      }
+    },
+    "test_mode": {
+      "delay_test": false,
+      "memory_test": false,
+      "fault_tolerance_test": false
+    },
+    "logs": {},
+    "metrics": {
+      "enabled": true,
+      "stop_after": null,
+      "trace_finalization": false,
+      "sampling_interval": 250,
+      "export_path": "result-jasmine-n16-h2-f1-ts128-bs500-ir2000-lr10.json",
+      "sampling_window": 40,
+      "stop_after_stable": true,
+      "stable_threshold": 1.0,
+      "report_every_n_samples": 8,
+      "stop_after_n_samples": 400
+    },
+    "client": {
+      "use_instant_generator": false,
+      "injection_rate": 2000
+    }
+  },
+  "output": {
+    "e2e_delay": 9982.97276268512,
+    "average_delay": 6215.813808488386,
+    "finalized_transactions": 496231,
+    "consensus_throughput": 4.870023062956966,
+    "key_block_ratio": 0.0826044703595724,
+    "finalized_blocks": 1029,
+    "key_block_delay": 4391.608832807571,
+    "average_batch_size": 482.24586977648204,
+    "block_delay": 99.02332361516035
+  }
+}

@@ -5,8 +5,8 @@
   },
   "node_settings": {
     "transaction_size": 128,
-    "batch_size": 500,
-    "mempool_size": 5000,
+    "batch_size": 250,
+    "mempool_size": 2500,
     "pretend_failure": false,
     "leader_rotation": 5,
     "gc_depth": 2000,

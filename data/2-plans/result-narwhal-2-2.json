@@ -2,21 +2,21 @@
   "input": {
     "consensus": "Narwhal",
     "parameters": {
-      "batch_size": 512000,
+      "batch_size": 128000,
       "gc_depth": 1000,
       "header_size": 1000,
       "max_batch_delay": 200,
       "max_header_delay": 200,
       "sync_retry_delay": 10000,
       "sync_retry_nodes": 3,
-      "transaction_size": 1024
+      "transaction_size": 512
     },
     "client": {
-      "injection_rate": 8000
+      "injection_rate": 6000
     }
   },
   "output": {
-    "throughput": 0.645,
-    "latency": 21330
+    "throughput": 2.658,
+    "latency": 13708
   }
 }

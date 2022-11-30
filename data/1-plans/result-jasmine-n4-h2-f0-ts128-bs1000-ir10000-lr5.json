@@ -1,12 +1,12 @@
 {
   "input": {
-    "id": "JetMPplNjgh2HV22gmhnrzE89yhXeyO50+g/Op+d1Ec=",
-    "private_key": "PHNnVP2cwuGOPoALgNOGCZJel117cGV4umha6rOrtT0l60w+mU2OCHYdXbaCaGevMTz3KFd7I7nT6D86n53URw==",
+    "id": "EYmWIZy6WmWn+mauOHHDCzxkB6u36rUTPkiU12A8ag4=",
+    "private_key": "gpHWEi+KiMzIOgyoHpuZLEb5MXPNQ5QfedX5PW0B+ecRiZYhnLpaZaf6Zq44ccMLPGQHq7fqtRM+SJTXYDxqDg==",
     "peer_addrs": {
-      "JetMPplNjgh2HV22gmhnrzE89yhXeyO50+g/Op+d1Ec=": "47.89.188.82:8123",
-      "MJlyJpaWgXMHMHV/Ot1OrehGjiuoEeaVPBQgxWO62jE=": "47.74.86.251:8124",
-      "eEjCKTa5qg/oApPKGDKDlsvvdXW/h5myNmagRTYN4z8=": "47.89.188.82:8125",
-      "eFo5pNlCZtA0q30bRjVcFNSAyMvOPZBwG4CKNb1lZr8=": "47.74.86.251:8126"
+      "EYmWIZy6WmWn+mauOHHDCzxkB6u36rUTPkiU12A8ag4=": "47.89.188.82:8123",
+      "Re5cnN8Uc+4xJXhRPjxPHHApUPu7D8/ewjrqS0JKmXM=": "47.74.86.251:8124",
+      "ZkLm+BseDkty7dP16XF1nJ9SlBd6YOKLxud+xmwbB4w=": "47.89.188.82:8125",
+      "evzQ4ehIIGlIrcX7/sv19XbAs3Ucuns+Za39GQoAREI=": "47.74.86.251:8126"
     },
     "node_settings": {
       "transaction_size": 128,
@@ -38,7 +38,7 @@
       "stop_after_stable": true,
       "stable_threshold": 1.0,
       "report_every_n_samples": 8,
-      "stop_after_n_samples": 400
+      "stop_after_n_samples": 240
     },
     "client": {
       "use_instant_generator": false,
@@ -46,14 +46,14 @@
     }
   },
   "output": {
-    "e2e_delay": 4143.96252418909,
-    "average_delay": 2770.7709591346675,
-    "finalized_transactions": 2951744,
-    "consensus_throughput": 29.42387208676409,
-    "key_block_ratio": 0.04784387787220649,
-    "finalized_blocks": 3177,
-    "key_block_delay": 2167.113655176188,
-    "average_batch_size": 929.0978910922254,
-    "block_delay": 31.576329870947436
+    "e2e_delay": 4706.420381649943,
+    "average_delay": 3169.33463661344,
+    "finalized_transactions": 1469881,
+    "consensus_throughput": 24.394340718612565,
+    "key_block_ratio": 0.05121470781352593,
+    "finalized_blocks": 1523,
+    "key_block_delay": 2588.79215862243,
+    "average_batch_size": 965.1221273801707,
+    "block_delay": 39.563361785948786
   }
 }
