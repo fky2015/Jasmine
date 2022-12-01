@@ -6,7 +6,7 @@ set -x
 
 find_dir ()
 {
-  RES=$(find . -type f -name "*$FILE" | sed -r 's|/[^/]+$||' |sort |uniq)
+  RES=$(find . -maxdepth 2 -mindepth 2 -type f -name "*$FILE" -printf "%T@ %p\n" |sort -n|awk '{print $2}' | sed -r 's|/[^/]+$||'|uniq )
   
   FOLDERS=($RES)
 

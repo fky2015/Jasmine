@@ -1,0 +1,65 @@
+{
+  "input": {
+    "id": "RnBFTXKZdeWeCeoT2tGyse/K5cg316M7UUPKoaY1324=",
+    "private_key": "8gn+HOownnbCW2OQ1giNGQf7yxqNyqBa+F3z2H/F88hGcEVNcpl15Z4J6hPa0bKx78rlyDfXoztRQ8qhpjXfbg==",
+    "peer_addrs": {
+      "RnBFTXKZdeWeCeoT2tGyse/K5cg316M7UUPKoaY1324=": "47.89.188.82:8123",
+      "VL+SVjbA24JhWHZAtxZ2WYSHL2KlUZU2GXt7jVeM99A=": "47.74.86.251:8124",
+      "Wwt7/UVSgGGaVZ+Ww46CmlV7r5bMwFG8KbTIDCuhlyY=": "47.89.188.82:8125",
+      "dHmTD+L9V9hL5EmEaFRB4IBl4NkiZvvtrUbcbegvvX8=": "47.74.86.251:8126",
+      "gQh1TcNURfAlNuWkOQYVvEtNB0HYCm6l21BMIZvfwOY=": "47.89.188.82:8127",
+      "id0d/2asj/vhENPOQ+GDneVUwjwgwg5leBIfIO18KI0=": "47.74.86.251:8128",
+      "jQ8l6r4z7z0ORSnlci4dNmSxigaNZzwQqzoZr9dQx5k=": "47.89.188.82:8129",
+      "nEoz4wE/25Sgrg0Hsxpe8Id4g5QsRx7xuoBgi56im2Y=": "47.74.86.251:8130",
+      "ssQA26oiJu3h/ACOJ23p7vb6I6mozeUPfOxdMVb+P9U=": "47.89.188.82:8131",
+      "1HUrfeeyyzBHzKbiUIrDFSEzVnQ5JD5Vuo26wGI2Hno=": "47.74.86.251:8132"
+    },
+    "node_settings": {
+      "transaction_size": 128,
+      "batch_size": 250,
+      "mempool_size": 5000,
+      "pretend_failure": false,
+      "leader_rotation": 5,
+      "gc_depth": 4000,
+      "timeout": 7000
+    },
+    "consensus": {
+      "Jasmine": {
+        "minimal_batch_size_ratio": 0.8
+      }
+    },
+    "test_mode": {
+      "delay_test": false,
+      "memory_test": false,
+      "fault_tolerance_test": false
+    },
+    "logs": {},
+    "metrics": {
+      "enabled": true,
+      "stop_after": null,
+      "trace_finalization": false,
+      "sampling_interval": 250,
+      "export_path": "result-jasmine-n10-h2-f3-ts128-bs250-ir2000-lr5.json",
+      "sampling_window": 40,
+      "stop_after_stable": true,
+      "stable_threshold": 1.0,
+      "report_every_n_samples": 8,
+      "stop_after_n_samples": 300
+    },
+    "client": {
+      "use_instant_generator": false,
+      "injection_rate": 2000
+    }
+  },
+  "output": {
+    "e2e_delay": 18105.417855428113,
+    "average_delay": 15397.687858095493,
+    "finalized_transactions": 187450,
+    "consensus_throughput": 2.285891979561723,
+    "key_block_ratio": 0.047435897435897434,
+    "finalized_blocks": 780,
+    "key_block_delay": 9155.112903225807,
+    "average_batch_size": 240.32051282051282,
+    "block_delay": 105.13205128205128
+  }
+}

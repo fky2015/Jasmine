@@ -9,7 +9,7 @@
     "pretend_failure": false,
     "leader_rotation": 1,
     "gc_depth": 2000,
-    "timeout": 5000
+    "timeout": 8000
   },
   "consensus": {
     "Jasmine": {

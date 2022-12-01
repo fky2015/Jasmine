@@ -1,0 +1,62 @@
+{
+  "input": {
+    "id": "DLNgcB1qdWIvpiSwGJwHLLeSnMCZeSZT9nQaDUdTHis=",
+    "private_key": "I8lYb+Q+n5Q9pfLL5F3cqJ+E4eeGXHMQcmBkDyY+A9EMs2BwHWp1Yi+mJLAYnAcst5KcwJl5JlP2dBoNR1MeKw==",
+    "peer_addrs": {
+      "DLNgcB1qdWIvpiSwGJwHLLeSnMCZeSZT9nQaDUdTHis=": "47.89.188.82:8123",
+      "LKVC7yAJhEO6O7FWxUSKjKXf4GLMOl4AK6TuYRfIZ+g=": "47.74.86.251:8124",
+      "LVfj/z+vZXcJoyemLZwoKXiiaQiHNGfGkzPuQAFm00c=": "47.89.188.82:8125",
+      "L1ibzxS7r1m6zCc1Fy6OLVWj3Pc7YFqB4v51AVN+fXQ=": "47.74.86.251:8126",
+      "VOgs2ZICKmP83FACkp5ACJBVvuw2/7RCArCobyem8g8=": "47.89.188.82:8127",
+      "g1q+eT3Cn0/eS9VmTMxmKLLZZV93JBr34GF2zcpJUoc=": "47.74.86.251:8128",
+      "2nzzYNid8JKdspV0SppGdnegu0hTRyN6/innG6zJNUI=": "47.89.188.82:8129"
+    },
+    "node_settings": {
+      "transaction_size": 128,
+      "batch_size": 250,
+      "mempool_size": 5000,
+      "pretend_failure": false,
+      "leader_rotation": 5,
+      "gc_depth": 4000,
+      "timeout": 7000
+    },
+    "consensus": {
+      "Jasmine": {
+        "minimal_batch_size_ratio": 0.8
+      }
+    },
+    "test_mode": {
+      "delay_test": false,
+      "memory_test": false,
+      "fault_tolerance_test": false
+    },
+    "logs": {},
+    "metrics": {
+      "enabled": true,
+      "stop_after": null,
+      "trace_finalization": false,
+      "sampling_interval": 250,
+      "export_path": "result-jasmine-n7-h2-f2-ts128-bs250-ir2500-lr5.json",
+      "sampling_window": 40,
+      "stop_after_stable": true,
+      "stable_threshold": 1.0,
+      "report_every_n_samples": 8,
+      "stop_after_n_samples": 300
+    },
+    "client": {
+      "use_instant_generator": false,
+      "injection_rate": 2500
+    }
+  },
+  "output": {
+    "e2e_delay": 9881.600674445268,
+    "average_delay": 7454.589815876441,
+    "finalized_transactions": 518945,
+    "consensus_throughput": 6.81584753999317,
+    "key_block_ratio": 0.02105755732335049,
+    "finalized_blocks": 2137,
+    "key_block_delay": 5067.2311473578375,
+    "average_batch_size": 242.83809078146936,
+    "block_delay": 35.62845109967244
+  }
+}
