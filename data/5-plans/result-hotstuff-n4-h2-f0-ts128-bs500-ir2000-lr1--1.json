@@ -1,12 +1,12 @@
 {
   "input": {
-    "id": "Fb2QJM/av7iylISHtiQnXdBy6p2U/MLfiN1J8k6yYoM=",
-    "private_key": "5oZSfy65hhwDK3P8awVphhBqOkRcb1rNGupXqc1otvcVvZAkz9q/uLKUhIe2JCdd0HLqnZT8wt+I3UnyTrJigw==",
+    "id": "LykUssqmL0vZNwK/uWxmwpbekodkpSmvSeJwGQjRm4A=",
+    "private_key": "da9eoIcVIphHHNR3X68Liq08k/nH+H2StHq15uNcNmUvKRSyyqYvS9k3Ar+5bGbClt6Sh2SlKa9J4nAZCNGbgA==",
     "peer_addrs": {
-      "Fb2QJM/av7iylISHtiQnXdBy6p2U/MLfiN1J8k6yYoM=": "47.89.188.82:8123",
-      "mNUE/2Q8qmYC2JtA737saI64qsGRcC6aYqCJALJ9+ms=": "47.74.86.251:8124",
-      "yEcP+R4svM3g9nLdhKSKWgVgLoeawhGHyyCHgDJnBXE=": "47.89.188.82:8125",
-      "/1fuFjpSh8Zm+RMnRfvOss4cxAYUh+F+d6QMlN+qW5U=": "47.74.86.251:8126"
+      "LykUssqmL0vZNwK/uWxmwpbekodkpSmvSeJwGQjRm4A=": "47.89.188.82:8123",
+      "M0EQBnTcrJwZO06EXi4AQo55JdOiQivaQxJoePmNPqk=": "47.74.86.251:8124",
+      "Whc+FoXGqpHhbtlpHp5TD5MFcS9fiGyA1wAKm9fcXi4=": "47.89.188.82:8125",
+      "wUwC9Q6LC82Q+FC+ILEfsk3cct8HoqKdTKb7FCjv4N4=": "47.74.86.251:8126"
     },
     "node_settings": {
       "transaction_size": 128,
@@ -42,14 +42,14 @@
     }
   },
   "output": {
-    "e2e_delay": 7430.9242160278745,
-    "average_delay": 570.1620209059233,
-    "finalized_transactions": 229600,
-    "consensus_throughput": 2.970668529803724,
+    "e2e_delay": 7517.007640067912,
+    "average_delay": 576.1757215619695,
+    "finalized_transactions": 235600,
+    "consensus_throughput": 2.9423518833050255,
     "key_block_ratio": 1.0,
-    "finalized_blocks": 460,
-    "key_block_delay": 570.1620209059233,
-    "average_batch_size": 499.1304347826087,
-    "block_delay": 168.01956521739132
+    "finalized_blocks": 472,
+    "key_block_delay": 576.1757215619695,
+    "average_batch_size": 499.1525423728813,
+    "block_delay": 169.64406779661016
   }
 }

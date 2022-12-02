@@ -1,0 +1,55 @@
+{
+  "input": {
+    "id": "DI49BPdGWj7ymf7LhDFt36PxAxljsSWSk2O5yqaP+/g=",
+    "private_key": "pkeafz6MMPhnelzRKlo1MGr+R2FQmkD6w2gk5vgOAIYMjj0E90ZaPvKZ/suEMW3fo/EDGWOxJZKTY7nKpo/7+A==",
+    "peer_addrs": {
+      "DI49BPdGWj7ymf7LhDFt36PxAxljsSWSk2O5yqaP+/g=": "47.89.188.82:8123",
+      "JmUtJdk7INFNKLXyvd930PakuvquSC9N5t7LgH38/ZQ=": "47.74.86.251:8124",
+      "5BMlDxFSrhBnmgs5inrRCqhekktfWwAnzxD8m6z/G28=": "47.89.188.82:8125",
+      "7UIXe7Zqib1+RkVar5ksiGN6vkPTn6PXJetup7mMyq4=": "47.74.86.251:8126"
+    },
+    "node_settings": {
+      "transaction_size": 128,
+      "batch_size": 500,
+      "mempool_size": 5000,
+      "pretend_failure": false,
+      "leader_rotation": 25,
+      "gc_depth": 2000,
+      "timeout": 5000
+    },
+    "consensus": "HotStuff",
+    "test_mode": {
+      "delay_test": false,
+      "memory_test": false,
+      "fault_tolerance_test": false
+    },
+    "logs": {},
+    "metrics": {
+      "enabled": true,
+      "stop_after": null,
+      "trace_finalization": false,
+      "sampling_interval": 250,
+      "export_path": "result-hotstuff-n4-h2-f0-ts128-bs500-ir300-lr25.json",
+      "sampling_window": 40,
+      "stop_after_stable": true,
+      "stable_threshold": 1.0,
+      "report_every_n_samples": 8,
+      "stop_after_n_samples": 600
+    },
+    "client": {
+      "use_instant_generator": false,
+      "injection_rate": 300
+    }
+  },
+  "output": {
+    "e2e_delay": 11589.980977023886,
+    "average_delay": 1021.6156352571935,
+    "finalized_transactions": 208695,
+    "consensus_throughput": 1.1257504733443735,
+    "key_block_ratio": 1.0,
+    "finalized_blocks": 589,
+    "key_block_delay": 1021.6156352571935,
+    "average_batch_size": 354.320882852292,
+    "block_delay": 314.741935483871
+  }
+}
