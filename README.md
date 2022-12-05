@@ -113,7 +113,3 @@ cargo run -- memory-test
 ```Bash
 cargo run -- fail-test
 ```
-
-
-## TODO
-- [ ] Error handles
