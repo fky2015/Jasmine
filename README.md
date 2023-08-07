@@ -1,4 +1,4 @@
-# Jasmine
+# Jasmine [^1]
 
 ## Quick Start
 
@@ -113,3 +113,5 @@ cargo run -- memory-test
 ```Bash
 cargo run -- fail-test
 ```
+
+[^1]: This is dedicated to my girlfriend Jasmine Jiang.
